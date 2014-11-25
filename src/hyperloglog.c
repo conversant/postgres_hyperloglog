@@ -12,14 +12,112 @@
 /* we're using md5, which produces 16B (128-bit) values */
 #define HASH_LENGTH 16
 
-/* Alpha constants, for various numbers of 'b'.
+/* array macros to save wasted array space */
+#define HLL_BITS 6 /* Enough to count up to 63 leading zeroes. */
+#define HLL_REGISTER_MAX ((1<<HLL_BITS)-1)
+
+#define HLL_DENSE_GET_REGISTER(target,p,regnum) do { \
+    uint8_t *_p = (uint8_t*) p; \
+    unsigned long _byte = regnum*HLL_BITS/8; \
+    unsigned long _fb = regnum*HLL_BITS&7; \
+    unsigned long _fb8 = 8 - _fb; \
+    unsigned long b0 = _p[_byte]; \
+    unsigned long b1 = _p[_byte+1]; \
+    target = ((b0 >> _fb) | (b1 << _fb8)) & HLL_REGISTER_MAX; \
+} while(0)
+
+/* Set the value of the register at position 'regnum' to 'val'.
+ * 'p' is an array of unsigned bytes. */
+#define HLL_DENSE_SET_REGISTER(p,regnum,val) do { \
+    uint8_t *_p = (uint8_t*) p; \
+    unsigned long _byte = regnum*HLL_BITS/8; \
+    unsigned long _fb = regnum*HLL_BITS&7; \
+    unsigned long _fb8 = 8 - _fb; \
+    unsigned long _v = val; \
+    _p[_byte] &= ~(HLL_REGISTER_MAX << _fb); \
+    _p[_byte] |= _v << _fb; \
+    _p[_byte+1] &= ~(HLL_REGISTER_MAX >> _fb8); \
+    _p[_byte+1] |= _v >> _fb8; \
+} while(0)
+
+
+/* Alpha * m * m constants, for various numbers of 'b'.
  * 
  * According to hyperloglog_create the 'b' values are between 4 and 16,
  * so the array has 16 non-zero items matching indexes 4, 5, ..., 16.
  * This makes it very easy to access the constants.
  */
-static float alpha[] = {0, 0, 0, 0, 0.673, 0.697, 0.709, 0.7153, 0.7183, 0.7198, 0.7205,
-                        0.7209, 0.7211, 0.7212, 0.7213, 0.7213, 0.7213};
+static float alpham[17] = {0, 0, 0, 0, 172.288 , 713.728, 2904.064,11718.991761634348, 47072.71267120224, 188686.82445861166, 755541.746198293, 3023758.3915552306, 12098218.894406674, 48399248.750978045, 193609743.86875492, 774464475.7234259, 3097908905.9095263};
+
+/* linear counting thresholds */
+static int threshold[19] = {0,0,0,0,10,20,40,80,220,400,900,1800,3100,6500,11500,20000,50000,120000,350000};
+
+/* precomputed inverse powers of 2 */
+double PE[64] = { 1.,
+        0.5,
+        0.25,
+        0.125,
+        0.0625,
+        0.03125,
+        0.015625,
+        0.0078125,
+        0.00390625,
+        0.001953125,
+        0.0009765625,
+        0.00048828125,
+        0.000244140625,
+        0.0001220703125,
+        0.00006103515625,
+        0.000030517578125,
+        0.0000152587890625,
+        0.00000762939453125,
+        0.000003814697265625,
+        0.0000019073486328125,
+        0.00000095367431640625,
+        0.000000476837158203125,
+        0.0000002384185791015625,
+        0.00000011920928955078125,
+        0.000000059604644775390625,
+        0.000000029802322387695312,
+        0.000000014901161193847656,
+        0.000000007450580596923828,
+        0.000000003725290298461914,
+        0.000000001862645149230957,
+        0.0000000009313225746154785,
+        0.00000000046566128730773926,
+        0.00000000023283064365386963,
+        0.00000000011641532182693481,
+        0.00000000005820766091346741,
+        0.000000000029103830456733704,
+        0.000000000014551915228366852,
+        0.000000000007275957614183426,
+        0.000000000003637978807091713,
+        0.0000000000018189894035458565,
+        0.0000000000009094947017729282,
+        0.0000000000004547473508864641,
+        0.00000000000022737367544323206,
+        0.00000000000011368683772161603,
+        0.000000000000056843418860808015,
+        0.000000000000028421709430404007,
+        0.000000000000014210854715202004,
+        0.000000000000007105427357601002,
+        0.000000000000003552713678800501,
+        0.0000000000000017763568394002505,
+        0.0000000000000008881784197001252,
+        0.0000000000000004440892098500626,
+        0.0000000000000002220446049250313,
+        0.00000000000000011102230246251565,
+        0.00000000000000005551115123125783,
+        0.000000000000000027755575615628914,
+        0.000000000000000013877787807814457,
+        0.000000000000000006938893903907228,
+        0.000000000000000003469446951953614,
+        0.000000000000000001734723475976807,
+        0.0000000000000000008673617379884035,
+        0.00000000000000000043368086899420177,
+        0.00000000000000000021684043449710089,
+        0.00000000000000000010842021724855044,
+        0.00000000000000000005421010862427522};
 
 int hyperloglog_get_min_bit(const unsigned char * buffer, int byteFrom, int bytes);
 int hyperloglog_get_r(const unsigned char * buffer, int byteFrom, int bytes);
@@ -70,8 +168,7 @@ HyperLogLogCounter hyperloglog_create(double ndistinct, float error) {
     else if (p->b > 16)
         elog(ERROR, "number of index bits exceeds 16 (requested %d)", p->b);
 
-    p->m= (int)pow(2, p->b);
-    memset(p->data, 0, p->m);
+    memset(p->data, 0, (int)pow(2, p->b));
 
     /* use 1B for a counter by default */
     p->binbits = 8;
@@ -105,6 +202,7 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
 
     int i;
     HyperLogLogCounter result;
+    uint8_t resultcount, countercount;
 
     /* check compatibility first */
     if (counter1->b != counter2->b)
@@ -119,8 +217,14 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
         result = counter1;
 
     /* copy the state of the estimator */
-    for (i = 0; i < result->m; i++)
-        result->data[i] = (result->data[i] > counter2->data[i]) ? result->data[i] : counter2->data[i];
+    for (i = 0; i < pow(2, result->b); i++){
+        HLL_DENSE_GET_REGISTER(resultcount,result->data,i);
+        HLL_DENSE_GET_REGISTER(countercount,counter2->data,i);
+        if (resultcount < countercount) {
+            HLL_DENSE_SET_REGISTER(result->data,i,countercount);
+        }
+    }
+    
 
     return result;
 
@@ -147,28 +251,21 @@ int hyperloglog_get_size(double ndistinct, float error) {
   else if (b > 16)
       elog(ERROR, "number of bits in HyperLogLog exceeds 16");
 
-  return offsetof(HyperLogLogCounterData,data) + (int)pow(2, b);
+  /* the size is the sum of the struct overhead and data with it 
+   * rounded up to nearest multiple of 4 bytes */  
+  return sizeof(HyperLogLogCounterData) + (((int) ceil( pow(2, b) * ceil(log2(log2(ndistinct))) / 32.0) + 3) &  ~0x03);
 
 }
 
 /* searches for the leftmost 1 (aka 'rho' in the algorithm) */
-int hyperloglog_get_min_bit(const unsigned char * buffer, int bitfrom, int nbits) {
-
-    int b = 0;
-    int byteIdx = 0;
-    int bitIdx = 0;
-
-    for (b = bitfrom; b < nbits; b++) {
-
-        byteIdx = b / 8;
-        bitIdx  = b % 8;
-
-        if ((buffer[byteIdx] & (0x1 << bitIdx)) != 0)
-            return (b - bitfrom + 1);
-
+uint8_t hyperloglog_get_max_bit(uint64_t buffer, int bitfrom, int nbits) {
+    int i,j=0;
+    for (i=bitfrom; i<nbits; i++){
+        j++;
+        if ( buffer & (1ULL << (nbits - 1-i)) )
+            return j;
     }
-
-    return (nbits-bitfrom) + 1;
+    return (nbits - bitfrom);
 
 }
 
@@ -184,33 +281,48 @@ int hyperloglog_get_min_bit(const unsigned char * buffer, int bitfrom, int nbits
  */
 double hyperloglog_estimate(HyperLogLogCounter hloglog) {
 
-    double sum = 0, E = 0;
+    double H = 0, E = 0;
     int j;
+    uint8_t entry;
+    int m = (int)ceil(pow(2,hloglog->b));
 
     /* compute the sum for the indicator function */
-    for (j = 0; j < hloglog->m; j++)
-        sum += (1.0 / pow(2, hloglog->data[j]));
+    for (j = 0; j < m; j++){
+        HLL_DENSE_GET_REGISTER(entry,hloglog->data,j);
+        H += PE[entry];
+    }
 
     /* and finally the estimate itself */
-    E = alpha[hloglog->b] * pow(hloglog->m, 2) / sum;
+    E = alpham[hloglog->b] / H;
 
-    if (E <= (5.0 * hloglog->m / 2)) {
+    if (E <= (5.0 * m)) {
 
+        /* search for empty registers for linear counting */
         int V = 0;
-        for (j = 0; j < hloglog->m; j++)
-            if (hloglog->data[j] == 0)
+        for (j = 0; j < m; j++){
+            HLL_DENSE_GET_REGISTER(entry,hloglog->data,j);
+            if (entry == 0){
                 V += 1;
+            }
+        }
 
-        if (V != 0)
-            E = hloglog->m * log(hloglog->m / (float)V);
+        /* Don't use linear counting if there are no empty registers */
+        if (V != 0){
+            H = m * log(m / (float)V);
+        } else {
+            H = E;
+        }
 
-    } else if (E > pow(2, 32) / 30) {
-
-        E = -pow(2,32) * log(1 - E / pow(2,32));
+        /* if the estimated cardinality is below the threshold for a specific accuracy
+         * return the linear counting result otherwise use the error corrected version */
+        if (H <= threshold[hloglog->b]) {
+            E = H;
+        }
 
     }
 
     return E;
+
 
 }
 
@@ -228,45 +340,26 @@ void hyperloglog_add_element(HyperLogLogCounter hloglog, const char * element, i
 
 }
 
-/*
- * Adds a 32-bit hash (computed from the actual item) into the counter. First it computes
- * the counter index from the first 32 bits of the hash, then uses the remaining data to
- * compute the value of the counter (aka 'rho').
- * 
- * This assumes the hash is at least 12B of data (96b = 32b + 64b), as it supports 1B
- * counters / rho values returning values up to 64 (which could fit into less than 8b,
- * but whatever).
- * 
- * However we're internally using MD5, which produces 128b (16B), so this is OK. Using
- * a shorter hash values (say CRC32 producing 32b values) would be possible too, but it
- * would require some tweaks.
- * 
- * Important note - it's essential to keep the counter index / rho independent, otherwise
- * the estimates will be much worse than the requested error rate. For example the 'rho'
- * was originally computed like this:
- * 
- *      rho = hyperloglog_get_min_bit(&hash[4], hloglog->b, 64);
- * 
- * which is not independent with the index because of how the shifts work. So the current
- * implementation simply uses the next 4B for rho.
- */
-void hyperloglog_add_hash(HyperLogLogCounter hloglog, const unsigned char * hash) {
+
+void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
 
     /* get the hash */
-    unsigned int idx;
-    char rho;
+    uint64_t idx;
+    uint8_t rho,entry;
 
     /* which stream is this (keep only the first 'b' bits) */
-    memcpy(&idx, hash, sizeof(int));
-    idx  = idx >> (32 - hloglog->b);
-
-    /* get the min bit (but skip the bits used for stream index) */
+    memcpy(&idx, &hash, sizeof(uint64_t));
+    idx  = idx >> (64 - hloglog->b);
 
     /* needs to be independent from 'idx' */
-    rho = hyperloglog_get_min_bit(&hash[4], 0, 64); /* 64-bit hash */
+    rho = hyperloglog_get_max_bit(hash, hloglog->b, 64); /* 64-bit hash */
 
     /* keep the highest value */
-    hloglog->data[idx] = (rho > (hloglog->data[idx])) ? rho : hloglog->data[idx];
+    HLL_DENSE_GET_REGISTER(entry,hloglog->data,idx);
+    if (rho > entry) {
+        HLL_DENSE_SET_REGISTER(hloglog->data,idx,rho);
+    }
+    
 
 }
 
