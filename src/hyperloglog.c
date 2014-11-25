@@ -41,7 +41,7 @@ void hyperloglog_reset_internal(HyperLogLogCounter hloglog);
  * returns:
  *      instance of HLL estimator (throws ERROR in case of failure)
  */
-HyperLogLogCounter hyperloglog_create(int64 ndistinct, float error) {
+HyperLogLogCounter hyperloglog_create(double ndistinct, float error) {
 
     float m;
     size_t length = hyperloglog_get_size(ndistinct, error);
@@ -55,7 +55,7 @@ HyperLogLogCounter hyperloglog_create(int64 ndistinct, float error) {
 
     /* what is the minimum number of bins to achieve the requested error rate? we'll
      * increase this to the nearest power of two later */
-    m = 1.04 / (error * error);
+    m = 1.0816 / (error * error);
 
     /* so how many bits do we need to index the bins (nearest power of two) */
     p->b = (int)ceil(log2(m));
@@ -101,18 +101,14 @@ HyperLogLogCounter hyperloglog_copy(HyperLogLogCounter counter) {
  * 
  * Mering is only possible if the counters share the same parameters (number of bins,
  * bin size, ...). If the counters don't match, this throws an ERROR. */
-HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCounter counter2, bool inplace) {
+HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCounter counter2, short inplace) {
 
     int i;
     HyperLogLogCounter result;
 
     /* check compatibility first */
-    if (counter1->length != counter2->length)
-        elog(ERROR, "sizes of estimators differs (%d != %d)", counter1->length, counter2->length);
-    else if (counter1->b != counter2->b)
+    if (counter1->b != counter2->b)
         elog(ERROR, "index size of estimators differs (%d != %d)", counter1->b, counter2->b);
-    else if (counter1->m != counter2->m)
-        elog(ERROR, "bin count of estimators differs (%d != %d)", counter1->m, counter2->m);
     else if (counter1->binbits != counter2->binbits)
         elog(ERROR, "bin size of estimators differs (%d != %d)", counter1->binbits, counter2->binbits);
 
@@ -135,7 +131,7 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
  * 
  * TODO The ndistinct is not currently used to determine size of the bin.
  */
-int hyperloglog_get_size(int64 ndistinct, float error) {
+int hyperloglog_get_size(double ndistinct, float error) {
 
   int b;
   float m;
@@ -143,7 +139,7 @@ int hyperloglog_get_size(int64 ndistinct, float error) {
   if (error <= 0 || error >= 1)
       elog(ERROR, "invalid error rate requested");
 
-  m = 1.04 / (error * error);
+  m = 1.0816 / (error * error);
   b = (int)ceil(log2(m));
 
   if (b < 4)

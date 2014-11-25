@@ -38,11 +38,10 @@ typedef struct HyperLogLogCounterData {
     
     /* Number of counters ('m' in the algorithm) - this is determined depending
      * on the requested error rate - see hyperloglog_create() for details. */
-    int b; /* bits for bin index */
-    int m; /* m = 2^b */
+    uint8_t b; /* bits for bin index */
     
     /* number of bits for a single counter (1B=8bits for now, but may change) */
-    int binbits;
+    uint8_t binbits;
     
     /* largest observed 'rho' for each of the 'm' bins (uses the very same trick
      * as in the varlena type in include/c.h */
@@ -54,11 +53,11 @@ typedef HyperLogLogCounterData * HyperLogLogCounter;
 
 /* creates an optimal bitmap able to count a multiset with the expected
  * cardinality and the given error rate. */
-HyperLogLogCounter hyperloglog_create(int64 ndistinct, float error);
-int hyperloglog_get_size(int64 ndistinct, float error);
+HyperLogLogCounter hyperloglog_create(double ndistinct, float error);
+int hyperloglog_get_size(double ndistinct, float error);
 
 HyperLogLogCounter hyperloglog_copy(HyperLogLogCounter counter);
-HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCounter counter2, bool inplace);
+HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCounter counter2, short inplace);
 
 /* add element existence */
 void hyperloglog_add_element(HyperLogLogCounter hloglog, const char * element, int elen);
