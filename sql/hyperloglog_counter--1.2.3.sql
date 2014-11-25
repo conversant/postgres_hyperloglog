@@ -61,7 +61,7 @@ CREATE FUNCTION hyperloglog_add_item(counter hyperloglog_estimator, item anyelem
      LANGUAGE C IMMUTABLE;
 
 -- get current estimate of the distinct values (as a real number)
-CREATE FUNCTION hyperloglog_get_estimate(counter hyperloglog_estimator) RETURNS real
+CREATE FUNCTION hyperloglog_get_estimate(counter hyperloglog_estimator) RETURNS double precision
      AS 'MODULE_PATHNAME', 'hyperloglog_get_estimate'
      LANGUAGE C STRICT IMMUTABLE;
 

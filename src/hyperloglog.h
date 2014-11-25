@@ -64,6 +64,6 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
 void hyperloglog_add_element(HyperLogLogCounter hloglog, const char * element, int elen);
 
 /* get an estimate from the hyperloglog counter */
-int hyperloglog_estimate(HyperLogLogCounter hloglog);
+double hyperloglog_estimate(HyperLogLogCounter hloglog);
 
 void hyperloglog_reset_internal(HyperLogLogCounter hloglog);

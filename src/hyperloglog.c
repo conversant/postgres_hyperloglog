@@ -186,7 +186,7 @@ int hyperloglog_get_min_bit(const unsigned char * buffer, int bitfrom, int nbits
  * 3) corrects the estimate for low/high values
  * 
  */
-int hyperloglog_estimate(HyperLogLogCounter hloglog) {
+double hyperloglog_estimate(HyperLogLogCounter hloglog) {
 
     double sum = 0, E = 0;
     int j;
@@ -214,7 +214,7 @@ int hyperloglog_estimate(HyperLogLogCounter hloglog) {
 
     }
 
-    return (int)E;
+    return E;
 
 }
 

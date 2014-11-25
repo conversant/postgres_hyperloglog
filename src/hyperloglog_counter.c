@@ -271,14 +271,14 @@ Datum
 hyperloglog_get_estimate(PG_FUNCTION_ARGS)
 {
 
-    int estimate;
+    double estimate;
     HyperLogLogCounter hyperloglog = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
 
     /* in-place update works only if executed as aggregate */
     estimate = hyperloglog_estimate(hyperloglog);
 
     /* return the updated bytea */
-    PG_RETURN_FLOAT4(estimate);
+    PG_RETURN_FLOAT8(estimate);
 
 }
 
