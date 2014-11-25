@@ -34,7 +34,7 @@
 typedef struct HyperLogLogCounterData {
     
     /* length of the structure (varlena) */
-    int32 length;
+    char vl_len_[4];
     
     /* Number of counters ('m' in the algorithm) - this is determined depending
      * on the requested error rate - see hyperloglog_create() for details. */
