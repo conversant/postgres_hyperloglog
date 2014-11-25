@@ -119,11 +119,10 @@ double PE[64] = { 1.,
         0.00000000000000000010842021724855044,
         0.00000000000000000005421010862427522};
 
-int hyperloglog_get_min_bit(const unsigned char * buffer, int byteFrom, int bytes);
-int hyperloglog_get_r(const unsigned char * buffer, int byteFrom, int bytes);
-int hyperloglog_estimate(HyperLogLogCounter hloglog);
+uint8_t hyperloglog_get_max_bit(uint64_t buffer, int bitfrom, int nbits);
+double hyperloglog_estimate(HyperLogLogCounter hloglog);
 
-void hyperloglog_add_hash(HyperLogLogCounter hloglog, const unsigned char * hash);
+void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash);
 void hyperloglog_reset_internal(HyperLogLogCounter hloglog);
 
 /* Allocate HLL estimator that can handle the desired cartinality and precision.
