@@ -16,9 +16,6 @@
 PG_MODULE_MAGIC;
 #endif
 
-#define VAL(CH)         ((CH) - '0')
-#define DIG(VAL)        ((VAL) + '0')
-
 /* shoot for 2^64 distinct items and 0.8125% error rate by default */
 #define DEFAULT_NDISTINCT   1ULL << 63 
 #define DEFAULT_ERROR       0.009
@@ -40,6 +37,13 @@ PG_FUNCTION_INFO_V1(hyperloglog_rect);
 PG_FUNCTION_INFO_V1(hyperloglog_send);
 PG_FUNCTION_INFO_V1(hyperloglog_length);
 
+PG_FUNCTION_INFO_V1(hyperloglog_equal);
+PG_FUNCTION_INFO_V1(hyperloglog_not_equal);
+PG_FUNCTION_INFO_V1(hyperloglog_union);
+PG_FUNCTION_INFO_V1(hyperloglog_intersection);
+PG_FUNCTION_INFO_V1(hyperloglog_compliment);
+PG_FUNCTION_INFO_V1(hyperloglog_symmetric_diff);
+
 Datum hyperloglog_add_item(PG_FUNCTION_ARGS);
 Datum hyperloglog_add_item_agg(PG_FUNCTION_ARGS);
 Datum hyperloglog_add_item_agg2(PG_FUNCTION_ARGS);
@@ -56,6 +60,13 @@ Datum hyperloglog_out(PG_FUNCTION_ARGS);
 Datum hyperloglog_recv(PG_FUNCTION_ARGS);
 Datum hyperloglog_send(PG_FUNCTION_ARGS);
 Datum hyperloglog_length(PG_FUNCTION_ARGS);
+
+Datum hyperloglog_equal(PG_FUNCTION_ARGS);
+Datum hyperloglog_not_equal(PG_FUNCTION_ARGS);
+Datum hyperloglog_union(PG_FUNCTION_ARGS);
+Datum hyperloglog_intersection(PG_FUNCTION_ARGS);
+Datum hyperloglog_compliment(PG_FUNCTION_ARGS);
+Datum hyperloglog_symmetric_diff(PG_FUNCTION_ARGS);
 
 Datum
 hyperloglog_add_item(PG_FUNCTION_ARGS)
@@ -388,3 +399,120 @@ hyperloglog_send(PG_FUNCTION_ARGS)
     pq_sendbytes(&buf, VARDATA(bp), VARSIZE(bp) - VARHDRSZ);
     PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
+
+
+/* set operations */
+Datum
+hyperloglog_equal(PG_FUNCTION_ARGS)
+{
+
+    HyperLogLogCounter counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+    HyperLogLogCounter counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+
+    if (PG_ARGISNULL(0) || PG_ARGISNULL(1)) {
+        PG_RETURN_NULL();
+    } else {
+        PG_RETURN_BOOL(hyperloglog_is_equal(counter1, counter2));
+    }
+
+}
+
+Datum
+hyperloglog_not_equal(PG_FUNCTION_ARGS)
+{
+
+    HyperLogLogCounter counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+    HyperLogLogCounter counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+
+    if (PG_ARGISNULL(0) || PG_ARGISNULL(1)) {
+        PG_RETURN_NULL();
+    } else {
+        PG_RETURN_BOOL(!hyperloglog_is_equal(counter1, counter2));
+    }
+
+}
+
+Datum
+hyperloglog_union(PG_FUNCTION_ARGS)
+{
+
+    HyperLogLogCounter counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+    HyperLogLogCounter counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+
+    if (PG_ARGISNULL(0) && PG_ARGISNULL(1)) {
+        PG_RETURN_NULL();
+    } else if (PG_ARGISNULL(0)) {
+        PG_RETURN_FLOAT8(hyperloglog_estimate(counter2));
+    } else if (PG_ARGISNULL(1)) {
+        PG_RETURN_FLOAT8(hyperloglog_estimate(counter1));
+    } else {
+        PG_RETURN_FLOAT8(hyperloglog_estimate(hyperloglog_merge(counter1, counter2,false)));
+    }
+
+}
+
+Datum
+hyperloglog_intersection(PG_FUNCTION_ARGS)
+{
+
+    HyperLogLogCounter counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+    HyperLogLogCounter counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+
+    if (PG_ARGISNULL(0) || PG_ARGISNULL(1)) {
+        PG_RETURN_NULL();
+    } else {
+    double A, B , AUB;
+    A = hyperloglog_estimate(counter1);
+    B = hyperloglog_estimate(counter2);
+    AUB = hyperloglog_estimate(hyperloglog_merge(counter1, counter2,false));
+        PG_RETURN_FLOAT8(A + B - AUB);
+    }
+
+}
+
+Datum
+hyperloglog_compliment(PG_FUNCTION_ARGS)
+{
+
+    HyperLogLogCounter counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+    HyperLogLogCounter counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+
+    if (PG_ARGISNULL(0) && PG_ARGISNULL(1)) {
+        PG_RETURN_NULL();
+    } else if (PG_ARGISNULL(0)) {
+        PG_RETURN_FLOAT8(hyperloglog_estimate(counter2));
+    } else if (PG_ARGISNULL(1)) {
+        PG_RETURN_FLOAT8(hyperloglog_estimate(counter1));
+    } else {
+        double B, AUB;
+        B = hyperloglog_estimate(counter2);
+        AUB = hyperloglog_estimate(hyperloglog_merge(counter1, counter2,false));
+        PG_RETURN_FLOAT8(AUB - B);
+    }
+
+}
+
+Datum
+hyperloglog_symmetric_diff(PG_FUNCTION_ARGS)
+{
+
+    HyperLogLogCounter counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+    HyperLogLogCounter counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+
+    /* is the counter created (if not, create it - error 1%, 10mil items) */
+    if (PG_ARGISNULL(0) && PG_ARGISNULL(1)) {
+        PG_RETURN_NULL();
+    } else if (PG_ARGISNULL(0)) {
+        PG_RETURN_FLOAT8(hyperloglog_estimate(counter2));
+    } else if (PG_ARGISNULL(1)) {
+        PG_RETURN_FLOAT8(hyperloglog_estimate(counter1));
+    } else {
+        double A, B , AUB;
+        A = hyperloglog_estimate(counter1);
+        B = hyperloglog_estimate(counter2);
+        AUB = hyperloglog_estimate(hyperloglog_merge(counter1, counter2,false));
+        PG_RETURN_FLOAT8(2*AUB - A - B);
+    }
+
+}
+

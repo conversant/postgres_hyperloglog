@@ -56,6 +56,8 @@ typedef HyperLogLogCounterData * HyperLogLogCounter;
 HyperLogLogCounter hyperloglog_create(double ndistinct, float error);
 int hyperloglog_get_size(double ndistinct, float error);
 
+int hyperloglog_is_equal(HyperLogLogCounter counter1, HyperLogLogCounter counter2);
+
 HyperLogLogCounter hyperloglog_copy(HyperLogLogCounter counter);
 HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCounter counter2, short inplace);
 

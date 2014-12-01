@@ -509,3 +509,25 @@ void hyperloglog_reset_internal(HyperLogLogCounter hloglog) {
     memset(hloglog, 0, VARSIZE(hloglog));
 
 }
+
+/* check the equality by comparing the register values not the cardinalities */
+int hyperloglog_is_equal(HyperLogLogCounter counter1, HyperLogLogCounter counter2){
+    
+    /* check compatibility first */
+    if (counter1->b != counter2->b)
+        elog(ERROR, "hash index size (bit length) of estimators differs (%d != %d)", counter1->b, counter2->b);
+
+    uint8_t entry1,entry2;
+    int m = (int)ceil(pow(2,counter1->b));
+    int i;
+
+    for (i = 0; i < m; i++){
+        HLL_DENSE_GET_REGISTER(entry1,counter1->data,i);
+        HLL_DENSE_GET_REGISTER(entry2,counter2->data,i);
+        if (entry1 != entry2){
+            return 0;
+        }
+    }
+
+    return 1;
+}

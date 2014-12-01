@@ -74,6 +74,31 @@ CREATE FUNCTION hyperloglog_reset(counter hyperloglog_estimator) RETURNS void
 CREATE FUNCTION length(counter hyperloglog_estimator) RETURNS int
      AS 'MODULE_PATHNAME', 'hyperloglog_length'
      LANGUAGE C STRICT IMMUTABLE;
+     
+/* functions for set operations */
+CREATE FUNCTION hyperloglog_equal(counter1 hyperloglog_estimator, counter2 hyperloglog_estimator) RETURNS bool
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_equal'
+     LANGUAGE C STRICT IMMUTABLE;
+
+CREATE FUNCTION hyperloglog_not_equal(counter1 hyperloglog_estimator, counter2 hyperloglog_estimator) RETURNS bool
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_not_equal'
+     LANGUAGE C STRICT IMMUTABLE;
+
+CREATE FUNCTION hyperloglog_intersection(counter1 hyperloglog_estimator, counter2 hyperloglog_estimator) RETURNS double precision
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_intersection'
+     LANGUAGE C STRICT IMMUTABLE;
+
+CREATE FUNCTION hyperloglog_union(counter1 hyperloglog_estimator, counter2 hyperloglog_estimator) RETURNS double precision
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_union'
+     LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION hyperloglog_compliment(counter1 hyperloglog_estimator, counter2 hyperloglog_estimator) RETURNS double precision
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_compliment'
+     LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION hyperloglog_symmetric_diff(counter1 hyperloglog_estimator, counter2 hyperloglog_estimator) RETURNS double precision
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_symmetric_diff'
+     LANGUAGE C IMMUTABLE;
 
 /* functions for aggregate functions */
 
@@ -84,6 +109,27 @@ CREATE FUNCTION hyperloglog_add_item_agg(counter hyperloglog_estimator, item any
 CREATE FUNCTION hyperloglog_add_item_agg2(counter hyperloglog_estimator, item anyelement) RETURNS hyperloglog_estimator
      AS 'MODULE_PATHNAME', 'hyperloglog_add_item_agg2'
      LANGUAGE C IMMUTABLE;
+
+/* functions for operators */
+CREATE FUNCTION convert_to_scalar(hyperloglog_estimator) RETURNS bigint
+    AS $$ select coalesce(hyperloglog_get_estimate($1)::bigint,0) $$
+    LANGUAGE SQL IMMUTABLE;
+
+CREATE FUNCTION hyperloglog_greater_than(hyperloglog_estimator,hyperloglog_estimator) RETURNS bool
+    AS $$ select hyperloglog_get_estimate($1) > hyperloglog_get_estimate($2) $$
+    LANGUAGE SQL IMMUTABLE;
+
+CREATE FUNCTION hyperloglog_less_than(hyperloglog_estimator,hyperloglog_estimator) RETURNS bool
+    AS $$ select hyperloglog_get_estimate($1) < hyperloglog_get_estimate($2) $$
+    LANGUAGE SQL IMMUTABLE;
+
+CREATE FUNCTION hyperloglog_greater_than_equal(hyperloglog_estimator,hyperloglog_estimator) RETURNS bool
+    AS $$ select hyperloglog_get_estimate($1) >= hyperloglog_get_estimate($2) $$
+    LANGUAGE SQL IMMUTABLE;
+
+CREATE FUNCTION hyperloglog_less_than_equal(hyperloglog_estimator,hyperloglog_estimator) RETURNS bool
+    AS $$ select hyperloglog_get_estimate($1) <= hyperloglog_get_estimate($2) $$
+    LANGUAGE SQL IMMUTABLE;
 
 -- LogLog based aggregate (item, error rate)
 CREATE AGGREGATE hyperloglog_distinct(anyelement, real)
@@ -139,3 +185,58 @@ CREATE OPERATOR || (
     RIGHTARG = hyperloglog_estimator,
     COMMUTATOR = ||
 );
+
+-- equality operator
+CREATE OPERATOR = (
+    PROCEDURE = hyperloglog_equal,
+    LEFTARG = hyperloglog_estimator,
+    RIGHTARG = hyperloglog_estimator,
+    COMMUTATOR = '=', NEGATOR = '<>',
+    RESTRICT = eqsel, JOIN = eqjoinsel
+);
+
+-- not-equal operator
+CREATE OPERATOR <> (
+    PROCEDURE = hyperloglog_not_equal,
+    LEFTARG = hyperloglog_estimator,
+    RIGHTARG = hyperloglog_estimator,
+    COMMUTATOR = '<>' , NEGATOR = '=',
+    RESTRICT = neqsel, JOIN = neqjoinsel
+);
+
+-- greater than operator
+CREATE OPERATOR > (
+    PROCEDURE = hyperloglog_greater_than,
+    LEFTARG = hyperloglog_estimator,
+    RIGHTARG = hyperloglog_estimator,
+    COMMUTATOR = '>' , NEGATOR = '<=',
+    RESTRICT = scalargtsel, JOIN = scalargtjoinsel
+);
+
+-- less than operator
+CREATE OPERATOR < (
+    PROCEDURE = hyperloglog_less_than,
+    LEFTARG = hyperloglog_estimator,
+    RIGHTARG = hyperloglog_estimator,
+    COMMUTATOR = '<' , NEGATOR = '>=',
+    RESTRICT = scalarltsel, JOIN = scalarltjoinsel
+);
+
+-- greater than or equal to operator
+CREATE OPERATOR >= (
+    PROCEDURE = hyperloglog_greater_than_equal,
+    LEFTARG = hyperloglog_estimator,
+    RIGHTARG = hyperloglog_estimator,
+    COMMUTATOR = '>=' , NEGATOR = '<',
+    RESTRICT = scalargtsel, JOIN = scalargtjoinsel
+);
+
+-- less than or equal to operator
+CREATE OPERATOR <= (
+    PROCEDURE = hyperloglog_less_than_equal,
+    LEFTARG = hyperloglog_estimator,
+    RIGHTARG = hyperloglog_estimator,
+    COMMUTATOR = '<=' , NEGATOR = '>',
+    RESTRICT = scalarltsel, JOIN = scalarltjoinsel
+);
+
