@@ -53,7 +53,7 @@ static float alpham[17] = {0, 0, 0, 0, 172.288 , 713.728, 2904.064,11718.9917616
 static int threshold[19] = {0,0,0,0,10,20,40,80,220,400,900,1800,3100,6500,11500,20000,50000,120000,350000};
 
 /* error correction data (x-values) */
-double[15][201] rawEstimateData = {
+double rawEstimateData[15][201] = {
   // precision 4
   { 11, 11.717, 12.207, 12.7896, 13.2882, 13.8204, 14.3772, 14.9342, 15.5202, 16.161, 16.7722, 17.4636, 18.0396, 18.6766, 19.3566, 20.0454, 20.7936, 21.4856, 22.2666, 22.9946, 23.766, 24.4692, 25.3638, 26.0764, 26.7864, 27.7602, 28.4814, 29.433, 30.2926, 31.0664, 31.9996, 32.7956, 33.5366, 34.5894, 35.5738, 36.2698, 37.3682, 38.0544, 39.2342, 40.0108, 40.7966, 41.9298, 42.8704, 43.6358, 44.5194, 45.773, 46.6772, 47.6174, 48.4888, 49.3304, 50.2506, 51.4996, 52.3824, 53.3078, 54.3984, 55.5838, 56.6618, 57.2174, 58.3514, 59.0802, 60.1482, 61.0376, 62.3598, 62.8078, 63.9744, 64.914, 65.781, 67.1806, 68.0594, 68.8446, 69.7928, 70.8248, 71.8324, 72.8598, 73.6246, 74.7014, 75.393, 76.6708, 77.2394, },
   // precision 5
@@ -262,7 +262,7 @@ HyperLogLogCounter hyperloglog_create(double ndistinct, float error) {
     size_t length = hyperloglog_get_size(ndistinct, error);
 
     /* the bitmap is allocated as part of this memory block (-1 as one bin is already in) */
-    HyperLogLogCounter p = (HyperLogLogCounter)palloc(length);
+    HyperLogLogCounter p = (HyperLogLogCounter)palloc0(length);
 
     /* target error rate needs to be between 0 and 1 */
     if (error <= 0 || error >= 1)
@@ -287,8 +287,6 @@ HyperLogLogCounter hyperloglog_create(double ndistinct, float error) {
         p->b = 4;
     else if (p->b > 16)
         elog(ERROR, "number of index bits exceeds 16 (requested %d)", p->b);
-
-    memset(p->data, 0, (int)pow(2, p->b));
 
     SET_VARSIZE(p, length);
 
@@ -369,7 +367,7 @@ int hyperloglog_get_size(double ndistinct, float error) {
 
   /* the size is the sum of the struct overhead and data with it 
    * rounded up to nearest multiple of 4 bytes */  
-  return sizeof(HyperLogLogCounterData) + (((int) ceil( pow(2, b) * ceil(log2(log2(ndistinct))) / 32.0) + 3) &  ~0x03);
+  return sizeof(HyperLogLogCounterData) + (int)ceil((pow(2, b) * ceil(log2(log2(ndistinct))) / 8.0));
 
 }
 

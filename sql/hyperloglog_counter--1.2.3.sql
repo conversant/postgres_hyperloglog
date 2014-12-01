@@ -36,43 +36,43 @@ CREATE CAST (bytea as hyperloglog_estimator) WITHOUT FUNCTION;
 
 -- get estimator size for the requested number of bitmaps / key size
 CREATE FUNCTION hyperloglog_size(error_rate real) RETURNS int
-     AS 'MODULE_PATHNAME', 'hyperloglog_size'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_size'
      LANGUAGE C IMMUTABLE;
 
 -- creates a new LogLog estimator with a given number of bitmaps / key size
 -- an estimator with 32 bitmaps and keysize 3 usually gives reasonable results
 CREATE FUNCTION hyperloglog_init(error_rate real) RETURNS hyperloglog_estimator
-     AS 'MODULE_PATHNAME', 'hyperloglog_init'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_init'
      LANGUAGE C IMMUTABLE;
 
 -- merges the second estimator into the first one
 CREATE FUNCTION hyperloglog_merge(estimator1 hyperloglog_estimator, estimator2 hyperloglog_estimator) RETURNS hyperloglog_estimator
-     AS 'MODULE_PATHNAME', 'hyperloglog_merge_simple'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_merge_simple'
      LANGUAGE C IMMUTABLE;
 
 -- merges the second estimator into the first one
 CREATE FUNCTION hyperloglog_merge_agg(estimator1 hyperloglog_estimator, estimator2 hyperloglog_estimator) RETURNS hyperloglog_estimator
-     AS 'MODULE_PATHNAME', 'hyperloglog_merge_agg'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_merge_agg'
      LANGUAGE C IMMUTABLE;
 
 -- add an item to the estimator
 CREATE FUNCTION hyperloglog_add_item(counter hyperloglog_estimator, item anyelement) RETURNS void
-     AS 'MODULE_PATHNAME', 'hyperloglog_add_item'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item'
      LANGUAGE C IMMUTABLE;
 
 -- get current estimate of the distinct values (as a real number)
 CREATE FUNCTION hyperloglog_get_estimate(counter hyperloglog_estimator) RETURNS double precision
-     AS 'MODULE_PATHNAME', 'hyperloglog_get_estimate'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_get_estimate'
      LANGUAGE C STRICT IMMUTABLE;
 
 -- reset the estimator (start counting from the beginning)
 CREATE FUNCTION hyperloglog_reset(counter hyperloglog_estimator) RETURNS void
-     AS 'MODULE_PATHNAME', 'hyperloglog_reset'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_reset'
      LANGUAGE C STRICT IMMUTABLE;
 
 -- length of the estimator (about the same as hyperloglog_size with existing estimator)
 CREATE FUNCTION length(counter hyperloglog_estimator) RETURNS int
-     AS 'MODULE_PATHNAME', 'hyperloglog_length'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_length'
      LANGUAGE C STRICT IMMUTABLE;
      
 /* functions for set operations */
@@ -103,11 +103,11 @@ CREATE FUNCTION hyperloglog_symmetric_diff(counter1 hyperloglog_estimator, count
 /* functions for aggregate functions */
 
 CREATE FUNCTION hyperloglog_add_item_agg(counter hyperloglog_estimator, item anyelement, error_rate real) RETURNS hyperloglog_estimator
-     AS 'MODULE_PATHNAME', 'hyperloglog_add_item_agg'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg'
      LANGUAGE C IMMUTABLE;
 
 CREATE FUNCTION hyperloglog_add_item_agg2(counter hyperloglog_estimator, item anyelement) RETURNS hyperloglog_estimator
-     AS 'MODULE_PATHNAME', 'hyperloglog_add_item_agg2'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg2'
      LANGUAGE C IMMUTABLE;
 
 /* functions for operators */
