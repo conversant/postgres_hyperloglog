@@ -124,6 +124,57 @@ double hyperloglog_estimate(HyperLogLogCounter hloglog);
 
 void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash);
 void hyperloglog_reset_internal(HyperLogLogCounter hloglog);
+uint64_t MurmurHash64A (const void * key, int len, unsigned int seed);
+
+uint64_t MurmurHash64A (const void * key, int len, unsigned int seed) {
+        const uint64_t m = 0xc6a4a7935bd1e995;
+        const int r = 47;
+        uint64_t h = seed ^ (len * m);
+        const uint8_t *data = (const uint8_t *)key;
+        const uint8_t *end = data + (len-(len&7));
+
+        while(data != end) {
+                uint64_t k;
+
+#if (BYTE_ORDER == LITTLE_ENDIAN)
+                k = *((uint64_t*)data);
+#else
+                k = (uint64_t) data[0];
+                k |= (uint64_t) data[1] << 8;
+                k |= (uint64_t) data[2] << 16;
+                k |= (uint64_t) data[3] << 24;
+                k |= (uint64_t) data[4] << 32;
+                k |= (uint64_t) data[5] << 40;
+                k |= (uint64_t) data[6] << 48;
+                k |= (uint64_t) data[7] << 56;
+#endif
+
+                k *= m;
+                k ^= k >> r;
+                k *= m;
+                h ^= k;
+                h *= m;
+                data += 8;
+        }
+
+        switch(len & 7) {
+            case 7: h ^= (uint64_t)data[6] << 48;
+            case 6: h ^= (uint64_t)data[5] << 40;
+            case 5: h ^= (uint64_t)data[4] << 32;
+            case 4: h ^= (uint64_t)data[3] << 24;
+            case 3: h ^= (uint64_t)data[2] << 16;
+            case 2: h ^= (uint64_t)data[1] << 8;
+            case 1: h ^= (uint64_t)data[0];
+            h *= m;
+        };
+
+        h ^= h >> r;
+        h *= m;
+        h ^= h >> r;
+
+        return h;
+}
+
 
 /* Allocate HLL estimator that can handle the desired cartinality and precision.
  *
@@ -155,7 +206,10 @@ HyperLogLogCounter hyperloglog_create(double ndistinct, float error) {
     m = 1.0816 / (error * error);
 
     /* so how many bits do we need to index the bins (nearest power of two) */
-    p->b = (int)ceil(log2(m));
+    p->b = (uint8_t)ceil(log2(m));
+
+    /* set the number of bits per register/bin */
+    p->binbits = (uint8_t)ceil(log2(log2(ndistinct)));
 
     /* TODO Is there actually a good reason to limit the number precision to 16 bits? We're
     * using MD5, so we have 128 bits available ... It'll require more memory - 16 bits is 65k
@@ -168,9 +222,6 @@ HyperLogLogCounter hyperloglog_create(double ndistinct, float error) {
         elog(ERROR, "number of index bits exceeds 16 (requested %d)", p->b);
 
     memset(p->data, 0, (int)pow(2, p->b));
-
-    /* use 1B for a counter by default */
-    p->binbits = 8;
 
     SET_VARSIZE(p, length);
 
@@ -222,8 +273,7 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
         if (resultcount < countercount) {
             HLL_DENSE_SET_REGISTER(result->data,i,countercount);
         }
-    }
-    
+    }   
 
     return result;
 
@@ -329,10 +379,10 @@ double hyperloglog_estimate(HyperLogLogCounter hloglog) {
 void hyperloglog_add_element(HyperLogLogCounter hloglog, const char * element, int elen) {
 
     /* get the hash */
-    unsigned char hash[HASH_LENGTH];
+    uint64_t hash;
 
     /* compute the hash using the salt */
-    pg_md5_binary(element, elen, hash);
+    hash = MurmurHash64A(element, elen, 0xadc83b19ULL);    
 
     /* add the hash to the estimator */
     hyperloglog_add_hash(hloglog, hash);
@@ -351,7 +401,7 @@ void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
     idx  = idx >> (64 - hloglog->b);
 
     /* needs to be independent from 'idx' */
-    rho = hyperloglog_get_max_bit(hash, hloglog->b, 64); /* 64-bit hash */
+    rho = __builtin_clzll(hash << hloglog->b) + 1; /* 64-bit hash */
 
     /* keep the highest value */
     HLL_DENSE_GET_REGISTER(entry,hloglog->data,idx);
@@ -365,6 +415,6 @@ void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
 /* Just reset the counter (set all the counters to 0). */
 void hyperloglog_reset_internal(HyperLogLogCounter hloglog) {
 
-    memset(hloglog->data, 0, hloglog->m);
+    memset(hloglog, 0, VARSIZE(hloglog));
 
 }
