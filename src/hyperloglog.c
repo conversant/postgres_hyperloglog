@@ -486,8 +486,7 @@ void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
     uint8_t rho,entry;
 
     /* which stream is this (keep only the first 'b' bits) */
-    memcpy(&idx, &hash, sizeof(uint64_t));
-    idx  = idx >> (64 - hloglog->b);
+    idx  = hash >> (64 - hloglog->b);
 
     /* needs to be independent from 'idx' */
     rho = __builtin_clzll(hash << hloglog->b) + 1; /* 64-bit hash */
