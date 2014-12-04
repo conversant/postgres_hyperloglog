@@ -34,23 +34,32 @@ CREATE TYPE hyperloglog_estimator (
 -- allow cast from bytea to hyperloglog_estimator
 CREATE CAST (bytea as hyperloglog_estimator) WITHOUT FUNCTION;
 
--- get estimator size for the requested number of bitmaps / key size
+-- get estimator size for the requested error_rate and default 2^64 ndistinct
+CREATE FUNCTION hyperloglog_size(error_rate real) RETURNS int
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_size_default'
+     LANGUAGE C IMMUTABLE;
+
+-- get estimator size for the requested error_rate and desired ndistinct
 CREATE FUNCTION hyperloglog_size(error_rate real) RETURNS int
      AS '$libdir/hyperloglog_counter', 'hyperloglog_size'
      LANGUAGE C IMMUTABLE;
 
--- creates a new LogLog estimator with a given number of bitmaps / key size
--- an estimator with 32 bitmaps and keysize 3 usually gives reasonable results
+-- creates a new HyperLogLog estimator with desired error_rate and default 2^64 ndistinct
 CREATE FUNCTION hyperloglog_init(error_rate real) RETURNS hyperloglog_estimator
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_init_default'
+     LANGUAGE C IMMUTABLE;
+
+-- creates a new HyperLogLog estimator with desired error_rate and a desired ndistinct
+CREATE FUNCTION hyperloglog_init(ndistinct double precision, error_rate real) RETURNS hyperloglog_estimator
      AS '$libdir/hyperloglog_counter', 'hyperloglog_init'
      LANGUAGE C IMMUTABLE;
 
--- merges the second estimator into the first one
+-- merges the second estimator into a copy of the first one
 CREATE FUNCTION hyperloglog_merge(estimator1 hyperloglog_estimator, estimator2 hyperloglog_estimator) RETURNS hyperloglog_estimator
      AS '$libdir/hyperloglog_counter', 'hyperloglog_merge_simple'
      LANGUAGE C IMMUTABLE;
 
--- merges the second estimator into the first one
+-- merges (inplace) the second estimator into the first one
 CREATE FUNCTION hyperloglog_merge_agg(estimator1 hyperloglog_estimator, estimator2 hyperloglog_estimator) RETURNS hyperloglog_estimator
      AS '$libdir/hyperloglog_counter', 'hyperloglog_merge_agg'
      LANGUAGE C IMMUTABLE;
@@ -102,12 +111,16 @@ CREATE FUNCTION hyperloglog_symmetric_diff(counter1 hyperloglog_estimator, count
 
 /* functions for aggregate functions */
 
-CREATE FUNCTION hyperloglog_add_item_agg(counter hyperloglog_estimator, item anyelement, error_rate real) RETURNS hyperloglog_estimator
+CREATE FUNCTION hyperloglog_add_item_agg(counter hyperloglog_estimator, item anyelement, error_rate real, ndistinct real) RETURNS hyperloglog_estimator
      AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg'
      LANGUAGE C IMMUTABLE;
 
-CREATE FUNCTION hyperloglog_add_item_agg2(counter hyperloglog_estimator, item anyelement) RETURNS hyperloglog_estimator
-     AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg2'
+CREATE FUNCTION hyperloglog_add_item_error(counter hyperloglog_estimator, item anyelement, error_rate real) RETURNS hyperloglog_estimator
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_error'
+     LANGUAGE C IMMUTABLE;
+     
+CREATE FUNCTION hyperloglog_add_item_error(counter hyperloglog_estimator, item anyelement) RETURNS hyperloglog_estimator
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_default'
      LANGUAGE C IMMUTABLE;
 
 /* functions for operators */
@@ -131,7 +144,7 @@ CREATE FUNCTION hyperloglog_less_than_equal(hyperloglog_estimator,hyperloglog_es
     AS $$ select hyperloglog_get_estimate($1) <= hyperloglog_get_estimate($2) $$
     LANGUAGE SQL IMMUTABLE;
 
--- LogLog based aggregate (item, error rate)
+-- HyperLogLog based count distinct (item, error rate, ndistinct)
 CREATE AGGREGATE hyperloglog_distinct(anyelement, real)
 (
     sfunc = hyperloglog_add_item_agg,
@@ -140,26 +153,42 @@ CREATE AGGREGATE hyperloglog_distinct(anyelement, real)
     finalfunc = hyperloglog_get_estimate
 );
 
--- LogLog based aggregate (item)
-CREATE AGGREGATE hyperloglog_distinct(anyelement)
+-- HyperLogLog based count distinct (item, error rate)
+CREATE AGGREGATE hyperloglog_distinct(anyelement, real)
 (
-    sfunc = hyperloglog_add_item_agg2,
+    sfunc = hyperloglog_add_item_agg_error,
     stype = hyperloglog_estimator,
     prefunc = hyperloglog_merge_agg,
     finalfunc = hyperloglog_get_estimate
 );
 
--- build the counter(s), but does not perform the final estimation (i.e. can be used to pre-aggregate data)
-CREATE AGGREGATE hyperloglog_accum(anyelement, real)
+-- HyperLogLog based count distinct (item)
+CREATE AGGREGATE hyperloglog_distinct(anyelement)
+(
+    sfunc = hyperloglog_add_item_default,
+    stype = hyperloglog_estimator,
+    prefunc = hyperloglog_merge_agg,
+    finalfunc = hyperloglog_get_estimate
+);
+
+-- build the counter(s) from elements, but does not perform the final estimation
+CREATE AGGREGATE hyperloglog_accum(anyelement, real , real)
 (
     sfunc = hyperloglog_add_item_agg,
     prefunc = hyperloglog_merge_agg,
     stype = hyperloglog_estimator
 );
 
+CREATE AGGREGATE hyperloglog_accum(anyelement, real)
+(
+    sfunc = hyperloglog_add_item_agg_error,
+    prefunc = hyperloglog_merge_agg,
+    stype = hyperloglog_estimator
+);
+
 CREATE AGGREGATE hyperloglog_accum(anyelement)
 (
-    sfunc = hyperloglog_add_item_agg2,
+    sfunc = hyperloglog_add_item_default,
     prefunc = hyperloglog_merge_agg,
     stype = hyperloglog_estimator
 );

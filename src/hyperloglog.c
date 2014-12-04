@@ -5,38 +5,31 @@
 #include <string.h>
 
 #include "postgres.h"
-#include "libpq/md5.h"
 
 #include "hyperloglog.h"
 
-/* we're using md5, which produces 16B (128-bit) values */
-#define HASH_LENGTH 16
 
-/* array macros to save wasted array space */
-#define HLL_BITS 6 /* Enough to count up to 63 leading zeroes. */
-#define HLL_REGISTER_MAX ((1<<HLL_BITS)-1)
-
-#define HLL_DENSE_GET_REGISTER(target,p,regnum) do { \
+#define HLL_DENSE_GET_REGISTER(target,p,regnum,hll_bits) do { \
     uint8_t *_p = (uint8_t*) p; \
-    unsigned long _byte = regnum*HLL_BITS/8; \
-    unsigned long _fb = regnum*HLL_BITS&7; \
+    unsigned long _byte = regnum*hll_bits/8; \
+    unsigned long _fb = regnum*hll_bits&7; \
     unsigned long _fb8 = 8 - _fb; \
     unsigned long b0 = _p[_byte]; \
     unsigned long b1 = _p[_byte+1]; \
-    target = ((b0 >> _fb) | (b1 << _fb8)) & HLL_REGISTER_MAX; \
+    target = ((b0 >> _fb) | (b1 << _fb8)) & ((1<<hll_bits)-1); \
 } while(0)
 
 /* Set the value of the register at position 'regnum' to 'val'.
  * 'p' is an array of unsigned bytes. */
-#define HLL_DENSE_SET_REGISTER(p,regnum,val) do { \
+#define HLL_DENSE_SET_REGISTER(p,regnum,val,hll_bits) do { \
     uint8_t *_p = (uint8_t*) p; \
-    unsigned long _byte = regnum*HLL_BITS/8; \
-    unsigned long _fb = regnum*HLL_BITS&7; \
+    unsigned long _byte = regnum*hll_bits/8; \
+    unsigned long _fb = regnum*hll_bits&7; \
     unsigned long _fb8 = 8 - _fb; \
     unsigned long _v = val; \
-    _p[_byte] &= ~(HLL_REGISTER_MAX << _fb); \
+    _p[_byte] &= ~(((1<<hll_bits)-1) << _fb); \
     _p[_byte] |= _v << _fb; \
-    _p[_byte+1] &= ~(HLL_REGISTER_MAX >> _fb8); \
+    _p[_byte+1] &= ~(((1<<hll_bits)-1) >> _fb8); \
     _p[_byte+1] |= _v >> _fb8; \
 } while(0)
 
@@ -193,6 +186,9 @@ void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash);
 void hyperloglog_reset_internal(HyperLogLogCounter hloglog);
 uint64_t MurmurHash64A (const void * key, int len, unsigned int seed);
 
+/* MurmurHash64A produces the fastest 64 bit hash of the MurmurHash implementations
+ * and is ~ 20x faster than md5. This version produces the same hash for the same key
+ * and seed in both big and little endian systems */
 uint64_t MurmurHash64A (const void * key, int len, unsigned int seed) {
         const uint64_t m = 0xc6a4a7935bd1e995;
         const int r = 47;
@@ -244,10 +240,6 @@ uint64_t MurmurHash64A (const void * key, int len, unsigned int seed) {
 
 
 /* Allocate HLL estimator that can handle the desired cartinality and precision.
- *
- * TODO The ndistinct is not currently used to determine size of the bin (number of
- * bits used to store the counter) - it's always 1B=8bits, for now, to make it
- * easier to work with. See the header file (hyperloglog.h) for discussion of this.
  * 
  * parameters:
  *      ndistinct   - cardinality the estimator should handle
@@ -272,16 +264,16 @@ HyperLogLogCounter hyperloglog_create(double ndistinct, float error) {
      * increase this to the nearest power of two later */
     m = 1.0816 / (error * error);
 
-    /* so how many bits do we need to index the bins (nearest power of two) */
+    /* so how many bits do we need to index the bins (round up to nearest power of two) */
     p->b = (uint8_t)ceil(log2(m));
 
-    /* set the number of bits per register/bin */
+    /* set the number of bits per bin */
     p->binbits = (uint8_t)ceil(log2(log2(ndistinct)));
 
-    /* TODO Is there actually a good reason to limit the number precision to 16 bits? We're
-    * using MD5, so we have 128 bits available ... It'll require more memory - 16 bits is 65k
-    * bins, requiring 65kB of  memory, which indeed is a lot. But why not to allow that if
-    * that's what was requested? */
+    /* TODO Is there actually a good reason to limit the number precision to 16 bits?It'll
+     * require more memory - 16 bits is 65k
+     * bins, requiring 65kB of  memory, which indeed is a lot. But why not to allow that if
+     * that's what was requested? */
 
     if (p->b < 4)   /* we want at least 2^4 (=16) bins */
         p->b = 4;
@@ -333,10 +325,10 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
 
     /* copy the state of the estimator */
     for (i = 0; i < pow(2, result->b); i++){
-        HLL_DENSE_GET_REGISTER(resultcount,result->data,i);
-        HLL_DENSE_GET_REGISTER(countercount,counter2->data,i);
+        HLL_DENSE_GET_REGISTER(resultcount,result->data,i,result->binbits);
+        HLL_DENSE_GET_REGISTER(countercount,counter2->data,i,result->binbits);
         if (resultcount < countercount) {
-            HLL_DENSE_SET_REGISTER(result->data,i,countercount);
+            HLL_DENSE_SET_REGISTER(result->data,i,countercount,result->binbits);
         }
     }   
 
@@ -345,10 +337,7 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
 }
 
 
-/* Computes size of the structure, depending on the requested error rate.
- * 
- * TODO The ndistinct is not currently used to determine size of the bin.
- */
+/* Computes size of the structure, depending on the requested error rate and ndistinct. */
 int hyperloglog_get_size(double ndistinct, float error) {
 
   int b;
@@ -365,8 +354,13 @@ int hyperloglog_get_size(double ndistinct, float error) {
   else if (b > 16)
       elog(ERROR, "number of bits in HyperLogLog exceeds 16");
 
-  /* the size is the sum of the struct overhead and data with it 
-   * rounded up to nearest multiple of 4 bytes */  
+  /* The size is the sum of the struct overhead and the bytes the used to store
+   * the buckets. Which is the product of the number of buckets and the 
+   * (bits per bucket)/ 8 where 8 is the amount of bits per byte.
+   *  
+   *  size_in_bytes = struct_overhead + num_buckets*(bits_per_bucket/8)
+   *
+   * */  
   return sizeof(HyperLogLogCounterData) + (int)ceil((pow(2, b) * ceil(log2(log2(ndistinct))) / 8.0));
 
 }
@@ -378,7 +372,7 @@ int hyperloglog_get_size(double ndistinct, float error) {
  * 
  * 1) sums the data in counters (1/2^m[i])
  * 2) computes the raw estimate E
- * 3) corrects the estimate for low/high values
+ * 3) corrects the estimate for low values
  * 
  */
 double hyperloglog_estimate(HyperLogLogCounter hloglog) {
@@ -390,21 +384,23 @@ double hyperloglog_estimate(HyperLogLogCounter hloglog) {
 
     /* compute the sum for the indicator function */
     for (j = 0; j < m; j++){
-        HLL_DENSE_GET_REGISTER(entry,hloglog->data,j);
+        HLL_DENSE_GET_REGISTER(entry,hloglog->data,j,hloglog->binbits);
         H += PE[entry];
     }
 
     /* and finally the estimate itself */
     E = alpham[hloglog->b] / H;
 
+    /* correct low values */
     if (E <= (5.0 * m)) {
-
+	
+	/* account for hloglog low cardinality bias */    
 	E = E - error_estimate(E,hloglog->b);
 
         /* search for empty registers for linear counting */
         int V = 0;
         for (j = 0; j < m; j++){
-            HLL_DENSE_GET_REGISTER(entry,hloglog->data,j);
+            HLL_DENSE_GET_REGISTER(entry,hloglog->data,j,hloglog->binbits);
             if (entry == 0){
                 V += 1;
             }
@@ -470,7 +466,7 @@ void hyperloglog_add_element(HyperLogLogCounter hloglog, const char * element, i
     /* get the hash */
     uint64_t hash;
 
-    /* compute the hash using the salt */
+    /* compute the hash */
     hash = MurmurHash64A(element, elen, 0xadc83b19ULL);    
 
     /* add the hash to the estimator */
@@ -492,9 +488,9 @@ void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
     rho = __builtin_clzll(hash << hloglog->b) + 1; /* 64-bit hash */
 
     /* keep the highest value */
-    HLL_DENSE_GET_REGISTER(entry,hloglog->data,idx);
+    HLL_DENSE_GET_REGISTER(entry,hloglog->data,idx,hloglog->binbits);
     if (rho > entry) {
-        HLL_DENSE_SET_REGISTER(hloglog->data,idx,rho);
+        HLL_DENSE_SET_REGISTER(hloglog->data,idx,rho,hloglog->binbits);
     }
     
 
@@ -512,15 +508,18 @@ int hyperloglog_is_equal(HyperLogLogCounter counter1, HyperLogLogCounter counter
     
     /* check compatibility first */
     if (counter1->b != counter2->b)
-        elog(ERROR, "hash index size (bit length) of estimators differs (%d != %d)", counter1->b, counter2->b);
+        elog(ERROR, "index size (bit length) of estimators differs (%d != %d)", counter1->b, counter2->b);
+    else if (counter1->binbits != counter2->binbits)
+        elog(ERROR, "bin size of estimators differs (%d != %d)", counter1->binbits, counter2->binbits);
 
     uint8_t entry1,entry2;
     int m = (int)ceil(pow(2,counter1->b));
     int i;
 
+    /* compare registers returning false on any difference */
     for (i = 0; i < m; i++){
-        HLL_DENSE_GET_REGISTER(entry1,counter1->data,i);
-        HLL_DENSE_GET_REGISTER(entry2,counter2->data,i);
+        HLL_DENSE_GET_REGISTER(entry1,counter1->data,i,counter1->data);
+        HLL_DENSE_GET_REGISTER(entry2,counter2->data,i,counter1->data);
         if (entry1 != entry2){
             return 0;
         }
