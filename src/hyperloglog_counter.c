@@ -29,10 +29,11 @@ PG_FUNCTION_INFO_V1(hyperloglog_merge_simple);
 PG_FUNCTION_INFO_V1(hyperloglog_merge_agg);
 PG_FUNCTION_INFO_V1(hyperloglog_get_estimate);
 
-PG_FUNCTION_INFO_V1(hyperloglog_size_default);
 PG_FUNCTION_INFO_V1(hyperloglog_init_default);
-PG_FUNCTION_INFO_V1(hyperloglog_size);
+PG_FUNCTION_INFO_V1(hyperloglog_init_error);
 PG_FUNCTION_INFO_V1(hyperloglog_init);
+PG_FUNCTION_INFO_V1(hyperloglog_size_default);
+PG_FUNCTION_INFO_V1(hyperloglog_size);
 PG_FUNCTION_INFO_V1(hyperloglog_reset);
 PG_FUNCTION_INFO_V1(hyperloglog_in);
 PG_FUNCTION_INFO_V1(hyperloglog_out);
@@ -57,8 +58,9 @@ Datum hyperloglog_merge_simple(PG_FUNCTION_ARGS);
 Datum hyperloglog_merge_agg(PG_FUNCTION_ARGS);
 
 Datum hyperloglog_size_default(PG_FUNCTION_ARGS);
-Datum hyperloglog_init_default(PG_FUNCTION_ARGS);
 Datum hyperloglog_size(PG_FUNCTION_ARGS);
+Datum hyperloglog_init_default(PG_FUNCTION_ARGS);
+Datum hyperloglog_init_error(PG_FUNCTION_ARGS);
 Datum hyperloglog_init(PG_FUNCTION_ARGS);
 Datum hyperloglog_reset(PG_FUNCTION_ARGS);
 Datum hyperloglog_in(PG_FUNCTION_ARGS);
@@ -362,6 +364,16 @@ hyperloglog_get_estimate(PG_FUNCTION_ARGS)
 
 Datum
 hyperloglog_init_default(PG_FUNCTION_ARGS)
+{
+      HyperLogLogCounter hyperloglog;
+
+      hyperloglog = hyperloglog_create(DEFAULT_NDISTINCT, DEFAULT_ERROR);
+
+      PG_RETURN_BYTEA_P(hyperloglog);
+}
+
+Datum
+hyperloglog_init_error(PG_FUNCTION_ARGS)
 {
       HyperLogLogCounter hyperloglog;
 

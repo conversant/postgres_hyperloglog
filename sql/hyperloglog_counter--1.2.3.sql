@@ -43,10 +43,15 @@ CREATE FUNCTION hyperloglog_size(error_rate real) RETURNS int
 CREATE FUNCTION hyperloglog_size(error_rate real) RETURNS int
      AS '$libdir/hyperloglog_counter', 'hyperloglog_size'
      LANGUAGE C IMMUTABLE;
+     
+-- creates a new HyperLogLog estimator with default error_rate 0.8125% and default 2^64 ndistinct
+CREATE FUNCTION hyperloglog_init() RETURNS hyperloglog_estimator
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_init_default'
+     LANGUAGE C IMMUTABLE;
 
 -- creates a new HyperLogLog estimator with desired error_rate and default 2^64 ndistinct
 CREATE FUNCTION hyperloglog_init(error_rate real) RETURNS hyperloglog_estimator
-     AS '$libdir/hyperloglog_counter', 'hyperloglog_init_default'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_init_error'
      LANGUAGE C IMMUTABLE;
 
 -- creates a new HyperLogLog estimator with desired error_rate and a desired ndistinct

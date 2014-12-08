@@ -487,6 +487,21 @@ void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
     /* needs to be independent from 'idx' */
     rho = __builtin_clzll(hash << hloglog->b) + 1; /* 64-bit hash */
 
+    /* we only have (64 - hloglog->b) bits leftover after the index bits
+     * however the chance that we need more is 2^-(64 - hloglog->b) which
+     * is very small. So we only compute more when needed. To do this we
+     * rehash the original hash and take the rho of the new hash and add it
+     * to the (64 - hloglog->b) bits. We can repeat this for rho up to 255  */
+    if (rho == 64){
+	uint8_t addn = 64;
+	rho = (64 - hloglog->b);
+	while (addn = 64 && rho < pow(2,hloglog->binbits)){
+		hash = MurmurHash64A(hash, 8, 0xadc83b19ULL);
+		addn = __builtin_clzll(hash) + 1;
+		rho += addn;
+	}
+    }
+
     /* keep the highest value */
     HLL_DENSE_GET_REGISTER(entry,hloglog->data,idx,hloglog->binbits);
     if (rho > entry) {
