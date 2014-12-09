@@ -40,7 +40,7 @@ CREATE FUNCTION hyperloglog_size(error_rate real) RETURNS int
      LANGUAGE C IMMUTABLE;
 
 -- get estimator size for the requested error_rate and desired ndistinct
-CREATE FUNCTION hyperloglog_size(error_rate real) RETURNS int
+CREATE FUNCTION hyperloglog_size(error_rate real, ndistinct double precision) RETURNS int
      AS '$libdir/hyperloglog_counter', 'hyperloglog_size'
      LANGUAGE C IMMUTABLE;
      
@@ -150,7 +150,7 @@ CREATE FUNCTION hyperloglog_less_than_equal(hyperloglog_estimator,hyperloglog_es
     LANGUAGE SQL IMMUTABLE;
 
 -- HyperLogLog based count distinct (item, error rate, ndistinct)
-CREATE AGGREGATE hyperloglog_distinct(anyelement, real)
+CREATE AGGREGATE hyperloglog_distinct(anyelement, real , real)
 (
     sfunc = hyperloglog_add_item_agg,
     stype = hyperloglog_estimator,
