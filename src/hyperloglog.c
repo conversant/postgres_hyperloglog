@@ -495,7 +495,7 @@ void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
     if (rho == 64){
 	uint8_t addn = 64;
 	rho = (64 - hloglog->b);
-	while (addn = 64 && rho < pow(2,hloglog->binbits)){
+	while (addn == 64 && rho < pow(2,hloglog->binbits)){
 		hash = MurmurHash64A(hash, 8, 0xadc83b19ULL);
 		addn = __builtin_clzll(hash) + 1;
 		rho += addn;
