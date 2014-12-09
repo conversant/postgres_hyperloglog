@@ -514,7 +514,7 @@ void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
 /* Just reset the counter (set all the counters to 0). */
 void hyperloglog_reset_internal(HyperLogLogCounter hloglog) {
 
-    memset(hloglog, 0, VARSIZE(hloglog));
+    memset(hloglog->data, 0, (int)pow(2,hloglog->b));
 
 }
 
