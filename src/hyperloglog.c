@@ -496,7 +496,7 @@ void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
 	uint8_t addn = 64;
 	rho = (64 - hloglog->b);
 	while (addn == 64 && rho < pow(2,hloglog->binbits)){
-		hash = MurmurHash64A(hash, 8, 0xadc83b19ULL);
+		hash = MurmurHash64A((const char * )&hash, 8, 0xadc83b19ULL);
 		addn = __builtin_clzll(hash) + 1;
 		rho += addn;
 	}
@@ -533,8 +533,8 @@ int hyperloglog_is_equal(HyperLogLogCounter counter1, HyperLogLogCounter counter
 
     /* compare registers returning false on any difference */
     for (i = 0; i < m; i++){
-        HLL_DENSE_GET_REGISTER(entry1,counter1->data,i,counter1->data);
-        HLL_DENSE_GET_REGISTER(entry2,counter2->data,i,counter1->data);
+        HLL_DENSE_GET_REGISTER(entry1,counter1->data,i,counter1->binbits);
+        HLL_DENSE_GET_REGISTER(entry2,counter2->data,i,counter2->binbits);
         if (entry1 != entry2){
             return 0;
         }

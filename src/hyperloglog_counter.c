@@ -399,7 +399,7 @@ hyperloglog_init(PG_FUNCTION_ARGS)
       double ndistinct; 
       float errorRate; /* required error rate */
 
-      ndistinct = PG_GETARG_FLOAT8(0)
+      ndistinct = PG_GETARG_FLOAT8(0);
       errorRate = PG_GETARG_FLOAT4(1);
 
       /* error rate between 0 and 1 (not 0) */
@@ -434,7 +434,7 @@ hyperloglog_size(PG_FUNCTION_ARGS)
       double ndistinct; 
       float errorRate; /* required error rate */
 
-      ndistinct = PG_GETARG_FLOAT8(0)
+      ndistinct = PG_GETARG_FLOAT8(0);
       errorRate = PG_GETARG_FLOAT4(1);
 
       /* error rate between 0 and 1 (not 0) */
