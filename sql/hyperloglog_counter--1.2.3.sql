@@ -71,7 +71,7 @@ CREATE FUNCTION hyperloglog_init(error_rate real) RETURNS hyperloglog_estimator
      LANGUAGE C IMMUTABLE;
 
 -- creates a new HyperLogLog estimator with desired error_rate and a desired ndistinct
-CREATE FUNCTION hyperloglog_init(error_rate real,ndistinct double precision,) RETURNS hyperloglog_estimator
+CREATE FUNCTION hyperloglog_init(error_rate real,ndistinct double precision) RETURNS hyperloglog_estimator
      AS '$libdir/hyperloglog_counter', 'hyperloglog_init'
      LANGUAGE C IMMUTABLE;
 
@@ -136,11 +136,11 @@ CREATE FUNCTION hyperloglog_add_item_agg(counter hyperloglog_estimator, item any
      AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg'
      LANGUAGE C IMMUTABLE;
 
-CREATE FUNCTION hyperloglog_add_item_error(counter hyperloglog_estimator, item anyelement, error_rate real) RETURNS hyperloglog_estimator
+CREATE FUNCTION hyperloglog_add_item_agg_error(counter hyperloglog_estimator, item anyelement, error_rate real) RETURNS hyperloglog_estimator
      AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg_error'
      LANGUAGE C IMMUTABLE;
      
-CREATE FUNCTION hyperloglog_add_item_error(counter hyperloglog_estimator, item anyelement) RETURNS hyperloglog_estimator
+CREATE FUNCTION hyperloglog_add_item_agg_default(counter hyperloglog_estimator, item anyelement) RETURNS hyperloglog_estimator
      AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg_default'
      LANGUAGE C IMMUTABLE;
      
