@@ -33,6 +33,7 @@ PG_FUNCTION_INFO_V1(hyperloglog_init_default);
 PG_FUNCTION_INFO_V1(hyperloglog_init_error);
 PG_FUNCTION_INFO_V1(hyperloglog_init);
 PG_FUNCTION_INFO_V1(hyperloglog_size_default);
+PG_FUNCTION_INFO_V1(hyperloglog_size_error)
 PG_FUNCTION_INFO_V1(hyperloglog_size);
 PG_FUNCTION_INFO_V1(hyperloglog_reset);
 PG_FUNCTION_INFO_V1(hyperloglog_length);
@@ -59,6 +60,7 @@ Datum hyperloglog_merge_simple(PG_FUNCTION_ARGS);
 Datum hyperloglog_merge_agg(PG_FUNCTION_ARGS);
 
 Datum hyperloglog_size_default(PG_FUNCTION_ARGS);
+Datum hyperloglog_size_error(PG_FUNCTION_ARGS);
 Datum hyperloglog_size(PG_FUNCTION_ARGS);
 Datum hyperloglog_init_default(PG_FUNCTION_ARGS);
 Datum hyperloglog_init_error(PG_FUNCTION_ARGS);
@@ -418,6 +420,22 @@ Datum
 hyperloglog_size_default(PG_FUNCTION_ARGS)
 {
 
+      float errorRate; /* required error rate */
+
+      errorRate = PG_GETARG_FLOAT4(0);
+
+      /* error rate between 0 and 1 (not 0) */
+      if ((errorRate <= 0) || (errorRate > 1)) {
+          elog(ERROR, "error rate has to be between 0 and 1");
+      }
+
+      PG_RETURN_INT32(hyperloglog_get_size(DEFAULT_NDISTINCT, errorRate));
+}
+
+Datum
+hyperloglog_size_error(PG_FUNCTION_ARGS)
+{
+      double ndistinct; 
       float errorRate; /* required error rate */
 
       errorRate = PG_GETARG_FLOAT4(0);

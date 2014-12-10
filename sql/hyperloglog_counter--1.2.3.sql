@@ -36,9 +36,14 @@ CREATE TYPE hyperloglog_estimator (
 -- allow cast from bytea to hyperloglog_estimator
 CREATE CAST (bytea as hyperloglog_estimator) WITHOUT FUNCTION;
 
+-- get estimator size for the default error_rate 0.8125% and default 2^64 ndistinct
+CREATE FUNCTION hyperloglog_size() RETURNS int
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_size_default'
+     LANGUAGE C IMMUTABLE;
+     
 -- get estimator size for the requested error_rate and default 2^64 ndistinct
 CREATE FUNCTION hyperloglog_size(error_rate real) RETURNS int
-     AS '$libdir/hyperloglog_counter', 'hyperloglog_size_default'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_size_error'
      LANGUAGE C IMMUTABLE;
 
 -- get estimator size for the requested error_rate and desired ndistinct
