@@ -190,7 +190,7 @@ CREATE AGGREGATE hyperloglog_distinct(anyelement, real)
 -- HyperLogLog based count distinct (item)
 CREATE AGGREGATE hyperloglog_distinct(anyelement)
 (
-    sfunc = hyperloglog_add_item_default,
+    sfunc = hyperloglog_add_item_agg_default,
     stype = hyperloglog_estimator,
     prefunc = hyperloglog_merge_agg,
     finalfunc = hyperloglog_get_estimate
@@ -215,7 +215,7 @@ CREATE AGGREGATE hyperloglog_accum(anyelement, real)
 
 CREATE AGGREGATE hyperloglog_accum(anyelement)
 (
-    sfunc = hyperloglog_add_item_default,
+    sfunc = hyperloglog_add_item_agg_default,
     prefunc = hyperloglog_merge_agg,
     stype = hyperloglog_estimator,
     finalfunc = hyperloglog_comp
