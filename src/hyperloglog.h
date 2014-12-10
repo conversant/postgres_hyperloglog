@@ -52,8 +52,10 @@ typedef struct HyperLogLogCounterData {
     char vl_len_[4];
     
     /* Number bits used to index the buckets - this is determined depending
-     * on the requested error rate - see hyperloglog_create() for details. */
-    uint8_t b; /* bits for bin index */
+     * on the requested error rate - see hyperloglog_create() for details. 
+     * This variable is unsigned as a negative version is used to indicate
+     * the data is compressed and requires decompression */
+    int8_t b; /* bits for bin index */
     
     /* number of bits for a single bucket */
     uint8_t binbits;
@@ -94,4 +96,9 @@ double hyperloglog_estimate(HyperLogLogCounter hloglog);
 
 /* reset a counter */
 void hyperloglog_reset_internal(HyperLogLogCounter hloglog);
+
+/* data compression/decompression */
+HyperLogLogCounter hyperloglog_compress(HyperLogLogCounter hloglog);
+HyperLogLogCounter hyperloglog_decompress(HyperLogLogCounter hloglog);
+
 #endif // #ifndef _HYPERLOGLOG_H_

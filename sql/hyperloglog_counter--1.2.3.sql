@@ -36,6 +36,15 @@ CREATE TYPE hyperloglog_estimator (
 -- allow cast from bytea to hyperloglog_estimator
 CREATE CAST (bytea as hyperloglog_estimator) WITHOUT FUNCTION;
 
+/* compress/decompress inner data funcitons */
+CREATE FUNCTION hyperloglog_comp(counter hyperloglog_estimator) RETURNS hyperloglog_estimator
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_comp'
+     LANGUAGE C IMMUTABLE STRICT;
+
+CREATE FUNCTION hyperloglog_decomp(counter hyperloglog_estimator) RETURNS hyperloglog_estimator
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_decomp'
+     LANGUAGE C IMMUTABLE STRICT;
+
 -- get estimator size for the default error_rate 0.8125% and default 2^64 ndistinct
 CREATE FUNCTION hyperloglog_size() RETURNS int
      AS '$libdir/hyperloglog_counter', 'hyperloglog_size_default'
@@ -192,21 +201,24 @@ CREATE AGGREGATE hyperloglog_accum(anyelement, real , double precision)
 (
     sfunc = hyperloglog_add_item_agg,
     prefunc = hyperloglog_merge_agg,
-    stype = hyperloglog_estimator
+    stype = hyperloglog_estimator,
+    finalfunc = hyperloglog_comp
 );
 
 CREATE AGGREGATE hyperloglog_accum(anyelement, real)
 (
     sfunc = hyperloglog_add_item_agg_error,
     prefunc = hyperloglog_merge_agg,
-    stype = hyperloglog_estimator
+    stype = hyperloglog_estimator,
+    finalfunc = hyperloglog_comp
 );
 
 CREATE AGGREGATE hyperloglog_accum(anyelement)
 (
     sfunc = hyperloglog_add_item_default,
     prefunc = hyperloglog_merge_agg,
-    stype = hyperloglog_estimator
+    stype = hyperloglog_estimator,
+    finalfunc = hyperloglog_comp
 );
 
 -- mirror real sum function
@@ -224,7 +236,8 @@ CREATE AGGREGATE hyperloglog_merge(hyperloglog_estimator)
 (
     sfunc = hyperloglog_merge_agg,
     prefunc = hyperloglog_merge_agg,
-    stype = hyperloglog_estimator
+    stype = hyperloglog_estimator,
+    finalfunc = hyperloglog_comp
 );
 
 -- evaluates the estimate (for an estimator)

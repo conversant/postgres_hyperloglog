@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "postgres.h"
+#include "utils/pg_lzcompress.h"
 
 #include "hyperloglog.h"
 
@@ -543,3 +544,88 @@ int hyperloglog_is_equal(HyperLogLogCounter counter1, HyperLogLogCounter counter
 
     return 1;
 }
+
+HyperLogLogCounter hyperloglog_compress(HyperLogLogCounter hloglog){
+    /* make sure the data isn't compressed already */
+    if (hloglog->b < 0) {
+        return hloglog;
+    }
+
+    PGLZ_Header * dest;
+    dest = malloc((int)pow(2,hloglog->b) + sizeof(PGLZ_Header) + 4);
+    memset(dest,0,(int)pow(2,hloglog->b) + sizeof(PGLZ_Header) + 4);
+    int i;
+    char entry,*data;
+    data = malloc((int)pow(2,hloglog->b));
+
+    /* put all registers in a normal array  i.e. remove dense packing*/
+    for(i=0; i < pow(2,hloglog->b) ; i++){
+        HLL_DENSE_GET_REGISTER(entry,hloglog->data,i,hloglog->binbits);
+        data[i] = entry;
+    }
+
+    /* lz_compress the normalized array and copy that data into hloglog->data*/
+    pglz_compress(data,(int)pow(2,hloglog->b),dest,PGLZ_strategy_always);
+    memcpy(hloglog->data,dest,VARSIZE(dest));
+
+    /* resize the counter to only encompass the compressed data and the struct overhead*/
+    SET_VARSIZE(hloglog,sizeof(HyperLogLogCounterData) + VARSIZE(dest) );
+
+    /* invert the b value so it being < 0 can be used as a compression flag */
+    hloglog->b = -1 * (hloglog->b);
+
+    /* free allocated memory */
+    if (dest){
+        free(dest);
+    }
+    if (data){
+        free(data);
+    }
+
+    /* return the compressed counter */
+    return hloglog;
+}
+
+HyperLogLogCounter hyperloglog_decompress(HyperLogLogCounter hloglog){
+    /* make sure the data is compressed */
+    if (hloglog->b > 0) {
+        return hloglog;
+    }
+
+    /* reset b to positive value for calcs and to indicate data is decompressed */
+    hloglog->b = -1 * (hloglog->b);
+
+    /* allocate and zero an array large enough to hold all the decompressed bins */
+    int m = (int) pow(2,hloglog->b);
+    char * dest;
+    dest = malloc(m);
+    memset(dest,0,m);
+
+    /* decompress the data */
+    int i;
+    pglz_decompress((PGLZ_Header *)hloglog->data,dest);
+
+    /* copy the struct internals but not the data into a counter with enough space
+     * for the uncompressed data  */
+    HyperLogLogCounter htemp = palloc(sizeof(HyperLogLogCounterData) + (int)ceil((m * hloglog->binbits / 8.0)));
+    memcpy(htemp,hloglog,sizeof(HyperLogLogCounterData));
+    hloglog = htemp;
+
+    /* set the registers to the appropriate value based on the decompressed data */
+    for (i=0; i<m; i++){
+        HLL_DENSE_SET_REGISTER(hloglog->data,i,dest[i],hloglog->binbits);
+    }
+
+    /* set the varsize to the appropriate length and change data_range back to its
+        original value */
+    SET_VARSIZE(hloglog,sizeof(HyperLogLogCounterData) + (int)ceil((m * hloglog->binbits / 8.0)) );
+    
+
+    /* free allocated memory */
+    if (dest){
+        free(dest);
+    }
+
+    return hloglog;
+}
+
