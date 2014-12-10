@@ -1,5 +1,5 @@
-#include "postgres.h"
-
+#ifndef _HYPERLOGLOG_H_
+#define _HYPERLOGLOG_H_
 /* This is an implementation of HyperLogLog algorithm as described in the
  * paper "HyperLogLog: the analysis of near-optimal cardinality estimation
  * algorithm", published by Flajolet, Fusy, Gandouet and Meunier in 2007.
@@ -10,7 +10,42 @@
  * in Practice: Algorithmic Engineering of a State of The Art Cardinality 
  * Estimation Algorithm", published by Stefan Heulem, Marc Nunkesse and 
  * Alexander Hall.
- */
+ *
+ * ----------------------------------------------------------------------------
+ * DEFINED CONSTANTS 
+ *
+ * ERROR_CONST = 1.04*1.04
+ * 
+ * 	Used in calculating the minimum m for a desired error_rate. Derived from 
+ * 	error_rate = 1.04/sqrt(m)
+ * 	sqrt(m) = 1.04/error_rate
+ * 	m = (1.04/error_rate)^2
+ * 	m = 1.0816/(error_rate*error_rate) 
+ *
+ * MIN_INDEX_BITS no real sense in being as innacurate as <4 values would be (>35%)
+ *
+ * MAX_INDEX_BITS counters start to be many megabytes large and such a value 
+ * 	probably indicates an accidental entry
+ *
+ * HASH_LENGTH the version of MurmurHash we use produces 64 bit hashes 
+ *
+ * HASH_SEED a random seed for the hash function to use
+ *
+ * MAX_INTERPOLATION_POINTS any precision (# index bits) above 5 has 200 points 
+ *
+ * PRECISION_5_MAX_INTERPOLATION_POINTS precision 5 only has 159 points
+ *
+ * PRECISION_4_MAX_INTERPOLATION_POINTS precision 4 only has 79 points */
+#define ERROR_CONST  1.0816
+#define MIN_INDEX_BITS 4
+#define MAX_INDEX_BITS 25
+#define HASH_LENGTH 64
+#define HASH_SEED 0xadc83b19ULL
+#define MAX_INTERPOLATION_POINTS 200
+#define PRECISION_5_MAX_INTERPOLATION_POINTS 159
+#define PRECISION_4_MAX_INTERPOLATION_POINTS 79
+
+/* type defininitions */
 typedef struct HyperLogLogCounterData {
     
     /* length of the structure (varlena) */
@@ -31,6 +66,7 @@ typedef struct HyperLogLogCounterData {
 } HyperLogLogCounterData;
 
 typedef HyperLogLogCounterData * HyperLogLogCounter;
+
 
 /* creates an optimal bitmap able to count a multiset with the expected
  * cardinality and the given error rate. */
@@ -58,3 +94,4 @@ double hyperloglog_estimate(HyperLogLogCounter hloglog);
 
 /* reset a counter */
 void hyperloglog_reset_internal(HyperLogLogCounter hloglog);
+#endif // #ifndef _HYPERLOGLOG_H_

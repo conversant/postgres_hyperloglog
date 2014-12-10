@@ -264,7 +264,7 @@ HyperLogLogCounter hyperloglog_create(double ndistinct, float error) {
 
     /* what is the minimum number of bins to achieve the requested error rate? we'll
      * increase this to the nearest power of two later */
-    m = 1.0816 / (error * error);
+    m = ERROR_CONST / (error * error);
 
     /* so how many bits do we need to index the bins (round up to nearest power of two) */
     p->b = (uint8_t)ceil(log2(m));
@@ -277,10 +277,10 @@ HyperLogLogCounter hyperloglog_create(double ndistinct, float error) {
      * bins, requiring 65kB of  memory, which indeed is a lot. But why not to allow that if
      * that's what was requested? */
 
-    if (p->b < 4)   /* we want at least 2^4 (=16) bins */
-        p->b = 4;
-    else if (p->b > 16)
-        elog(ERROR, "number of index bits exceeds 16 (requested %d)", p->b);
+    if (p->b < MIN_INDEX_BITS)   /* we want at least 2^4 (=16) bins */
+        p->b = MIN_INDEX_BITS;
+    else if (p->b > MAX_INDEX_BITS)
+        elog(ERROR, "number of index bits exceeds MAX_INDEX_BITS (requested %d)", p->b);
 
     SET_VARSIZE(p, length);
 
@@ -348,13 +348,13 @@ int hyperloglog_get_size(double ndistinct, float error) {
   if (error <= 0 || error >= 1)
       elog(ERROR, "invalid error rate requested");
 
-  m = 1.0816 / (error * error);
+  m = ERROR_CONST / (error * error);
   b = (int)ceil(log2(m));
 
-  if (b < 4)
-      b = 4;
-  else if (b > 16)
-      elog(ERROR, "number of bits in HyperLogLog exceeds 16");
+  if (b < MIN_INDEX_BITS)
+      b = MIN_INDEX_BITS;
+  else if (b > MAX_INDEX_BITS)
+      elog(ERROR, "number of index bits exceeds MAX_INDEX_BITS (requested %d)",b);
 
   /* The size is the sum of the struct overhead and the bytes the used to store
    * the buckets. Which is the product of the number of buckets and the 
@@ -435,11 +435,11 @@ double error_estimate(double E,int b){
 
     /* get the number of interpoloation points for that precision */
     if (b > 5 ) {
-        max = 200;
+        max = MAX_INTERPOLATION_POINTS;
     } else if (b == 5) {
-        max = 159;
+        max = PRECISION_5_MAX_INTERPOLATION_POINTS;
     } else if (b == 4) {
-        max = 79;
+        max = PRECISION_4_MAX_INTERPOLATION_POINTS;
     }
 
     /* find the index of the first interpolation point greater than the uncorrected estimate */
@@ -469,7 +469,7 @@ void hyperloglog_add_element(HyperLogLogCounter hloglog, const char * element, i
     uint64_t hash;
 
     /* compute the hash */
-    hash = MurmurHash64A(element, elen, 0xadc83b19ULL);    
+    hash = MurmurHash64A(element, elen, HASH_SEED);    
 
     /* add the hash to the estimator */
     hyperloglog_add_hash(hloglog, hash);
@@ -484,7 +484,7 @@ void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
     uint8_t rho,entry;
 
     /* which stream is this (keep only the first 'b' bits) */
-    idx  = hash >> (64 - hloglog->b);
+    idx  = hash >> (HASH_LENGTH - hloglog->b);
 
     /* needs to be independent from 'idx' */
     rho = __builtin_clzll(hash << hloglog->b) + 1; /* 64-bit hash */
@@ -494,12 +494,12 @@ void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
      * is very small. So we only compute more when needed. To do this we
      * rehash the original hash and take the rho of the new hash and add it
      * to the (64 - hloglog->b) bits. We can repeat this for rho up to 255  */
-    if (rho == 64){
-	uint8_t addn = 64;
-	rho = (64 - hloglog->b);
-	while (addn == 64 && rho < pow(2,hloglog->binbits)){
-		hash = MurmurHash64A((const char * )&hash, 8, 0xadc83b19ULL);
-		addn = __builtin_clzll(hash) + 1;
+    if (rho == HASH_LENGTH){
+	uint8_t addn = HASH_LENGTH;
+	rho = (HASH_LENGTH - hloglog->b);
+	while (addn == HASH_LENGTH && rho < pow(2,hloglog->binbits)){
+		hash = MurmurHash64A((const char * )&hash, HASH_LENGTH/8, HASH_SEED);
+		addn = __builtin_clzll(hash) + 1; // zero length runs should be 1 so counter gets set
 		rho += addn;
 	}
     }
