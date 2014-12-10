@@ -1,5 +1,7 @@
 -- HyperLogLog 
 
+SET search_path = public, pg_catalog;
+
 -- HyperLogLog counter (shell type)
 CREATE TYPE hyperloglog_estimator;
 
@@ -55,7 +57,7 @@ CREATE FUNCTION hyperloglog_init(error_rate real) RETURNS hyperloglog_estimator
      LANGUAGE C IMMUTABLE;
 
 -- creates a new HyperLogLog estimator with desired error_rate and a desired ndistinct
-CREATE FUNCTION hyperloglog_init(ndistinct double precision, error_rate real) RETURNS hyperloglog_estimator
+CREATE FUNCTION hyperloglog_init(error_rate real,ndistinct double precision,) RETURNS hyperloglog_estimator
      AS '$libdir/hyperloglog_counter', 'hyperloglog_init'
      LANGUAGE C IMMUTABLE;
 
@@ -116,17 +118,21 @@ CREATE FUNCTION hyperloglog_symmetric_diff(counter1 hyperloglog_estimator, count
 
 /* functions for aggregate functions */
 
-CREATE FUNCTION hyperloglog_add_item_agg(counter hyperloglog_estimator, item anyelement, error_rate real, ndistinct real) RETURNS hyperloglog_estimator
+CREATE FUNCTION hyperloglog_add_item_agg(counter hyperloglog_estimator, item anyelement, error_rate real, ndistinct double precision) RETURNS hyperloglog_estimator
      AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg'
      LANGUAGE C IMMUTABLE;
 
 CREATE FUNCTION hyperloglog_add_item_error(counter hyperloglog_estimator, item anyelement, error_rate real) RETURNS hyperloglog_estimator
-     AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_error'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg_error'
      LANGUAGE C IMMUTABLE;
      
 CREATE FUNCTION hyperloglog_add_item_error(counter hyperloglog_estimator, item anyelement) RETURNS hyperloglog_estimator
-     AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_default'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg_default'
      LANGUAGE C IMMUTABLE;
+     
+CREATE FUNCTION hyperloglog_get_estimate_bigint(hyperloglog_estimator) RETURNS bigint
+     AS $$ select coalesce(round(hyperloglog_get_estimate($1))::bigint, 0) $$
+     LANGUAGE SQL IMMUTABLE;
 
 /* functions for operators */
 CREATE FUNCTION convert_to_scalar(hyperloglog_estimator) RETURNS bigint
@@ -150,7 +156,7 @@ CREATE FUNCTION hyperloglog_less_than_equal(hyperloglog_estimator,hyperloglog_es
     LANGUAGE SQL IMMUTABLE;
 
 -- HyperLogLog based count distinct (item, error rate, ndistinct)
-CREATE AGGREGATE hyperloglog_distinct(anyelement, real , real)
+CREATE AGGREGATE hyperloglog_distinct(anyelement, real , double precision)
 (
     sfunc = hyperloglog_add_item_agg,
     stype = hyperloglog_estimator,
@@ -177,7 +183,7 @@ CREATE AGGREGATE hyperloglog_distinct(anyelement)
 );
 
 -- build the counter(s) from elements, but does not perform the final estimation
-CREATE AGGREGATE hyperloglog_accum(anyelement, real , real)
+CREATE AGGREGATE hyperloglog_accum(anyelement, real , double precision)
 (
     sfunc = hyperloglog_add_item_agg,
     prefunc = hyperloglog_merge_agg,
@@ -197,6 +203,16 @@ CREATE AGGREGATE hyperloglog_accum(anyelement)
     prefunc = hyperloglog_merge_agg,
     stype = hyperloglog_estimator
 );
+
+-- mirror real sum function
+CREATE AGGREGATE sum(hyperloglog_estimator)
+(
+    sfunc = hyperloglog_merge_agg,
+    stype = hyperloglog_estimator,
+    prefunc = hyperloglog_merge_agg,
+    finalfunc = hyperloglog_get_estimate_bigint
+);
+
 
 -- merges all the counters into just a single one (e.g. after running hyperloglog_accum)
 CREATE AGGREGATE hyperloglog_merge(hyperloglog_estimator)

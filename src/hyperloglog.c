@@ -8,7 +8,6 @@
 
 #include "hyperloglog.h"
 
-
 #define HLL_DENSE_GET_REGISTER(target,p,regnum,hll_bits) do { \
     uint8_t *_p = (uint8_t*) p; \
     unsigned long _byte = regnum*hll_bits/8; \
@@ -39,6 +38,9 @@
  * According to hyperloglog_create the 'b' values are between 4 and 16,
  * so the array has 16 non-zero items matching indexes 4, 5, ..., 16.
  * This makes it very easy to access the constants.
+ *
+ * alpha[] = {0, 0, 0, 0, 0.673, 0.697, 0.709, 0.7153, 0.7183, 0.7198, 0.7205,
+ *            0.7209, 0.7211, 0.7212, 0.7213, 0.7213, 0.7213};
  */
 static float alpham[17] = {0, 0, 0, 0, 172.288 , 713.728, 2904.064,11718.991761634348, 47072.71267120224, 188686.82445861166, 755541.746198293, 3023758.3915552306, 12098218.894406674, 48399248.750978045, 193609743.86875492, 774464475.7234259, 3097908905.9095263};
 
@@ -514,7 +516,7 @@ void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
 /* Just reset the counter (set all the counters to 0). */
 void hyperloglog_reset_internal(HyperLogLogCounter hloglog) {
 
-    memset(hloglog, 0, VARSIZE(hloglog));
+    memset(hloglog->data, 0, (int)pow(2,hloglog->b));
 
 }
 

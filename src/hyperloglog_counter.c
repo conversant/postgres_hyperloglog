@@ -35,11 +35,12 @@ PG_FUNCTION_INFO_V1(hyperloglog_init);
 PG_FUNCTION_INFO_V1(hyperloglog_size_default);
 PG_FUNCTION_INFO_V1(hyperloglog_size);
 PG_FUNCTION_INFO_V1(hyperloglog_reset);
+PG_FUNCTION_INFO_V1(hyperloglog_length);
+
 PG_FUNCTION_INFO_V1(hyperloglog_in);
 PG_FUNCTION_INFO_V1(hyperloglog_out);
 PG_FUNCTION_INFO_V1(hyperloglog_rect);
 PG_FUNCTION_INFO_V1(hyperloglog_send);
-PG_FUNCTION_INFO_V1(hyperloglog_length);
 
 PG_FUNCTION_INFO_V1(hyperloglog_equal);
 PG_FUNCTION_INFO_V1(hyperloglog_not_equal);
@@ -63,11 +64,12 @@ Datum hyperloglog_init_default(PG_FUNCTION_ARGS);
 Datum hyperloglog_init_error(PG_FUNCTION_ARGS);
 Datum hyperloglog_init(PG_FUNCTION_ARGS);
 Datum hyperloglog_reset(PG_FUNCTION_ARGS);
+Datum hyperloglog_length(PG_FUNCTION_ARGS);
+
 Datum hyperloglog_in(PG_FUNCTION_ARGS);
 Datum hyperloglog_out(PG_FUNCTION_ARGS);
 Datum hyperloglog_recv(PG_FUNCTION_ARGS);
 Datum hyperloglog_send(PG_FUNCTION_ARGS);
-Datum hyperloglog_length(PG_FUNCTION_ARGS);
 
 Datum hyperloglog_equal(PG_FUNCTION_ARGS);
 Datum hyperloglog_not_equal(PG_FUNCTION_ARGS);
@@ -399,8 +401,8 @@ hyperloglog_init(PG_FUNCTION_ARGS)
       double ndistinct; 
       float errorRate; /* required error rate */
 
-      ndistinct = PG_GETARG_FLOAT8(0);
-      errorRate = PG_GETARG_FLOAT4(1);
+      ndistinct = PG_GETARG_FLOAT8(1);
+      errorRate = PG_GETARG_FLOAT4(0);
 
       /* error rate between 0 and 1 (not 0) */
       if ((errorRate <= 0) || (errorRate > 1)) {
@@ -434,8 +436,8 @@ hyperloglog_size(PG_FUNCTION_ARGS)
       double ndistinct; 
       float errorRate; /* required error rate */
 
-      ndistinct = PG_GETARG_FLOAT8(0);
-      errorRate = PG_GETARG_FLOAT4(1);
+      ndistinct = PG_GETARG_FLOAT8(1);
+      errorRate = PG_GETARG_FLOAT4(0);
 
       /* error rate between 0 and 1 (not 0) */
       if ((errorRate <= 0) || (errorRate > 1)) {
