@@ -272,11 +272,6 @@ HyperLogLogCounter hyperloglog_create(double ndistinct, float error) {
     /* set the number of bits per bin */
     p->binbits = (uint8_t)ceil(log2(log2(ndistinct)));
 
-    /* TODO Is there actually a good reason to limit the number precision to 16 bits?It'll
-     * require more memory - 16 bits is 65k
-     * bins, requiring 65kB of  memory, which indeed is a lot. But why not to allow that if
-     * that's what was requested? */
-
     if (p->b < MIN_INDEX_BITS)   /* we want at least 2^4 (=16) bins */
         p->b = MIN_INDEX_BITS;
     else if (p->b > MAX_INDEX_BITS)
@@ -328,7 +323,7 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
     /* copy the state of the estimator */
     for (i = 0; i < pow(2, result->b); i++){
         HLL_DENSE_GET_REGISTER(resultcount,result->data,i,result->binbits);
-        HLL_DENSE_GET_REGISTER(countercount,counter2->data,i,result->binbits);
+        HLL_DENSE_GET_REGISTER(countercount,counter2->data,i,counter2->binbits);
         if (resultcount < countercount) {
             HLL_DENSE_SET_REGISTER(result->data,i,countercount,result->binbits);
         }
@@ -489,11 +484,14 @@ void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
     /* needs to be independent from 'idx' */
     rho = __builtin_clzll(hash << hloglog->b) + 1; /* 64-bit hash */
 
-    /* we only have (64 - hloglog->b) bits leftover after the index bits
+    /* We only have (64 - hloglog->b) bits leftover after the index bits
      * however the chance that we need more is 2^-(64 - hloglog->b) which
      * is very small. So we only compute more when needed. To do this we
      * rehash the original hash and take the rho of the new hash and add it
-     * to the (64 - hloglog->b) bits. We can repeat this for rho up to 255  */
+     * to the (64 - hloglog->b) bits. We can repeat this for rho up to 255.
+     * We can't go any higher since integer values >255 take more than 1 byte
+     * which is currently supported nor really necessary due to 2^(2^8) ~ 1.16E77 
+     * a number so large its not feasible to have that many unique elements. */
     if (rho == HASH_LENGTH){
 	uint8_t addn = HASH_LENGTH;
 	rho = (HASH_LENGTH - hloglog->b);
@@ -513,7 +511,8 @@ void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
 
 }
 
-/* Just reset the counter (set all the counters to 0). */
+/* Just reset the counter (set all the counters to 0). We do this by
+ * zeroing the data array */
 void hyperloglog_reset_internal(HyperLogLogCounter hloglog) {
 
     memset(hloglog->data, 0, (int)pow(2,hloglog->b));
