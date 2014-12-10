@@ -33,7 +33,7 @@ PG_FUNCTION_INFO_V1(hyperloglog_init_default);
 PG_FUNCTION_INFO_V1(hyperloglog_init_error);
 PG_FUNCTION_INFO_V1(hyperloglog_init);
 PG_FUNCTION_INFO_V1(hyperloglog_size_default);
-PG_FUNCTION_INFO_V1(hyperloglog_size_error)
+PG_FUNCTION_INFO_V1(hyperloglog_size_error);
 PG_FUNCTION_INFO_V1(hyperloglog_size);
 PG_FUNCTION_INFO_V1(hyperloglog_reset);
 PG_FUNCTION_INFO_V1(hyperloglog_length);
@@ -483,7 +483,6 @@ hyperloglog_size_default(PG_FUNCTION_ARGS)
 Datum
 hyperloglog_size_error(PG_FUNCTION_ARGS)
 {
-      double ndistinct; 
       float errorRate; /* required error rate */
 
       errorRate = PG_GETARG_FLOAT4(0);
