@@ -321,7 +321,7 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
     else
         result = counter1;
 
-    /* copy the state of the estimator */
+    /* Keep the maximum register value for each bin */
     for (i = 0; i < pow(2, result->b); i++){
         HLL_DENSE_GET_REGISTER(resultcount,result->data,i,result->binbits);
         HLL_DENSE_GET_REGISTER(countercount,counter2->data,i,counter2->binbits);
@@ -380,16 +380,17 @@ double hyperloglog_estimate(HyperLogLogCounter hloglog) {
     uint8_t entry;
     int m = (int)ceil(pow(2,hloglog->b));
 
-    /* compute the sum for the indicator function */
+    /* compute the sum for the harmonic mean */
     for (j = 0; j < m; j++){
         HLL_DENSE_GET_REGISTER(entry,hloglog->data,j,hloglog->binbits);
         H += PE[entry];
     }
 
-    /* and finally the estimate itself */
+    /* multiple by constants to turn the mean into an estimate */
     E = alpham[hloglog->b] / H;
 
-    /* correct low values */
+    /* correct for hyperloglog's low cardinality bias by either using linear counting
+     * or error estimation */
     if (E <= (5.0 * m)) {
 	
 	/* account for hloglog low cardinality bias */    
@@ -404,7 +405,8 @@ double hyperloglog_estimate(HyperLogLogCounter hloglog) {
             }
         }
 
-        /* Don't use linear counting if there are no empty registers */
+        /* Don't use linear counting if there are no empty registers since we don't
+	 * to divide by 0 */
         if (V != 0){
             H = m * log(m / (float)V);
         } else {
@@ -446,7 +448,8 @@ double error_estimate(double E,int b){
         }
     }
 
-    /* take an average of the 6 nearest points */
+    /* take an average of the 6 nearest points working around cases where idx + 3 > max
+     * or idx -2 < 0  */
     if (idx == -1){
         avg = (double)(biasData[b-4][max - 1] + biasData[b-4][max - 2] + biasData[b-4][max -3] + biasData[b-4][max - 4] + biasData[b-4][max - 5] + biasData[b-4][max - 6]) / 6;
     } else if ( idx > 3 && idx < (max - 4)){
@@ -461,7 +464,6 @@ double error_estimate(double E,int b){
 
 void hyperloglog_add_element(HyperLogLogCounter hloglog, const char * element, int elen) {
 
-    /* get the hash */
     uint64_t hash;
 
     /* compute the hash */
@@ -475,15 +477,14 @@ void hyperloglog_add_element(HyperLogLogCounter hloglog, const char * element, i
 
 void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
 
-    /* get the hash */
     uint64_t idx;
     uint8_t rho,entry;
 
-    /* which stream is this (keep only the first 'b' bits) */
+    /* get idx (keep only the first 'b' bits) */
     idx  = hash >> (HASH_LENGTH - hloglog->b);
 
-    /* needs to be independent from 'idx' */
-    rho = __builtin_clzll(hash << hloglog->b) + 1; /* 64-bit hash */
+    /* rho needs to be independent from 'idx' */
+    rho = __builtin_clzll(hash << hloglog->b) + 1;
 
     /* We only have (64 - hloglog->b) bits leftover after the index bits
      * however the chance that we need more is 2^-(64 - hloglog->b) which
@@ -551,21 +552,29 @@ HyperLogLogCounter hyperloglog_compress(HyperLogLogCounter hloglog){
         return hloglog;
     }
 
+    /* make sure the dest struct has enough space for an unsuccessful compression
+     * and a 4 bytes of overflow since lz might not recognize its over until then
+     * preventing segfaults */
     PGLZ_Header * dest;
-    dest = malloc((int)pow(2,hloglog->b) + sizeof(PGLZ_Header) + 4);
-    memset(dest,0,(int)pow(2,hloglog->b) + sizeof(PGLZ_Header) + 4);
-    int i;
+    int i, m = (int)pow(2,hloglog->b);
+    dest = malloc(m + sizeof(PGLZ_Header) + 4);
+    memset(dest,0,m + sizeof(PGLZ_Header) + 4);
     char entry,*data;
-    data = malloc((int)pow(2,hloglog->b));
+    data = malloc(m);
 
-    /* put all registers in a normal array  i.e. remove dense packing*/
-    for(i=0; i < pow(2,hloglog->b) ; i++){
+    /* put all registers in a normal array  i.e. remove dense packing so
+     * lz compression can work optimally */
+    for(i=0; i < m ; i++){
         HLL_DENSE_GET_REGISTER(entry,hloglog->data,i,hloglog->binbits);
         data[i] = entry;
     }
 
-    /* lz_compress the normalized array and copy that data into hloglog->data*/
-    pglz_compress(data,(int)pow(2,hloglog->b),dest,PGLZ_strategy_always);
+    /* lz_compress the normalized array and copy that data into hloglog->data
+     * if any compression was acheived */
+    pglz_compress(data,m,dest,PGLZ_strategy_always);
+    if (VARSIZE(dest) >= (m * hloglog->binbits /8) ){
+	return hloglog;
+    }
     memcpy(hloglog->data,dest,VARSIZE(dest));
 
     /* resize the counter to only encompass the compressed data and the struct overhead*/
@@ -616,8 +625,7 @@ HyperLogLogCounter hyperloglog_decompress(HyperLogLogCounter hloglog){
         HLL_DENSE_SET_REGISTER(hloglog->data,i,dest[i],hloglog->binbits);
     }
 
-    /* set the varsize to the appropriate length and change data_range back to its
-        original value */
+    /* set the varsize to the appropriate length  */
     SET_VARSIZE(hloglog,sizeof(HyperLogLogCounterData) + (int)ceil((m * hloglog->binbits / 8.0)) );
     
 
