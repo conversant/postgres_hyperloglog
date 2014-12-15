@@ -254,14 +254,18 @@ uint64_t MurmurHash64A (const void * key, int len, unsigned int seed) {
 HyperLogLogCounter hyperloglog_create(double ndistinct, float error) {
 
     float m;
+
+    /* target error rate needs to be between 0 and 1 */
+    if (error <= 0 || error >= 1)
+        elog(ERROR, "invalid error rate requested - only values in (0,1) allowed");
+
     size_t length = hyperloglog_get_size(ndistinct, error);
 
     /* the bitmap is allocated as part of this memory block (-1 as one bin is already in) */
     HyperLogLogCounter p = (HyperLogLogCounter)palloc0(length);
 
-    /* target error rate needs to be between 0 and 1 */
-    if (error <= 0 || error >= 1)
-        elog(ERROR, "invalid error rate requested - only values in (0,1) allowed");
+    /* set the counter struct version */
+    p->version = STRUCT_VERSION;
 
     /* what is the minimum number of bins to achieve the requested error rate? we'll
      * increase this to the nearest power of two later */

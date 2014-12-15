@@ -44,6 +44,7 @@
 #define MAX_INTERPOLATION_POINTS 200
 #define PRECISION_5_MAX_INTERPOLATION_POINTS 159
 #define PRECISION_4_MAX_INTERPOLATION_POINTS 79
+#define STRUCT_VERSION 0
 
 /* type defininitions */
 typedef struct HyperLogLogCounterData {
@@ -59,6 +60,9 @@ typedef struct HyperLogLogCounterData {
     
     /* number of bits for a single bucket */
     uint8_t binbits;
+
+    /* Used to indicate the version of the struct to allow further modification in hte future */
+    uint16_t version;
     
     /* largest observed 'rho' for each of the 'm' buckets (uses the very same trick
      * as in the varlena type in include/c.h where additional memory is palloc'ed and

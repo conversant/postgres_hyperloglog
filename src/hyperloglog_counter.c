@@ -16,6 +16,8 @@
 PG_MODULE_MAGIC;
 #endif
 
+#define PG_GETARG_HLL_P(n) pg_check_hll_version((HyperLogLogCounter) PG_GETARG_BYTEA_P(n))
+
 /* shoot for 2^64 distinct items and 0.8125% error rate by default */
 #define DEFAULT_NDISTINCT   1ULL << 63 
 #define DEFAULT_ERROR       0.009
@@ -86,6 +88,15 @@ Datum hyperloglog_intersection(PG_FUNCTION_ARGS);
 Datum hyperloglog_compliment(PG_FUNCTION_ARGS);
 Datum hyperloglog_symmetric_diff(PG_FUNCTION_ARGS);
 
+HyperLogLogCounter pg_check_hll_version(HyperLogLogCounter hloglog);
+
+HyperLogLogCounter pg_check_hll_version(HyperLogLogCounter hloglog){
+    if (hloglog->version != STRUCT_VERSION){
+        elog(ERROR,"ERROR: The stored counter is version %u while the library is version %u. Please change library version or use upgrade function to upgrade the counter",hloglog->version,STRUCT_VERSION);
+    }
+    return hloglog;
+}
+
 Datum
 hyperloglog_add_item(PG_FUNCTION_ARGS)
 {
@@ -106,7 +117,7 @@ hyperloglog_add_item(PG_FUNCTION_ARGS)
         char        typalign;
 
         /* estimator (we know it's not a NULL value) */
-        hyperloglog = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+        hyperloglog = PG_GETARG_HLL_P(0);
 
         /* TODO The requests for type info shouldn't be a problem (thanks to lsyscache),
          * but if it turns out to have a noticeable impact it's possible to cache that
@@ -115,7 +126,7 @@ hyperloglog_add_item(PG_FUNCTION_ARGS)
         /* get type information for the second parameter (anyelement item) */
         get_typlenbyvalalign(element_type, &typlen, &typbyval, &typalign);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(hyperloglog->b < 0){
             hyperloglog = hyperloglog_decompress(hyperloglog);
         }	
@@ -157,7 +168,7 @@ hyperloglog_add_item_agg(PG_FUNCTION_ARGS)
     if (PG_ARGISNULL(0)) {
 
         errorRate = PG_GETARG_FLOAT4(2);
-	ndistinct = PG_GETARG_FLOAT8(3);
+	    ndistinct = PG_GETARG_FLOAT8(3);
 
         /* error rate between 0 and 1 (not 0) */
         if ((errorRate <= 0) || (errorRate > 1))
@@ -166,7 +177,7 @@ hyperloglog_add_item_agg(PG_FUNCTION_ARGS)
         hyperloglog = hyperloglog_create(ndistinct, errorRate);
 
     } else { /* existing estimator */
-        hyperloglog = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+        hyperloglog = PG_GETARG_HLL_P(0);
     }
 
     /* add the item to the estimator (skip NULLs) */
@@ -179,7 +190,7 @@ hyperloglog_add_item_agg(PG_FUNCTION_ARGS)
         /* get type information for the second parameter (anyelement item) */
         get_typlenbyvalalign(element_type, &typlen, &typbyval, &typalign);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(hyperloglog->b < 0){
             hyperloglog = hyperloglog_decompress(hyperloglog);
         }	
@@ -228,7 +239,7 @@ hyperloglog_add_item_agg_error(PG_FUNCTION_ARGS)
         hyperloglog = hyperloglog_create(DEFAULT_NDISTINCT, errorRate);
 
     } else { /* existing estimator */
-        hyperloglog = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+        hyperloglog = PG_GETARG_HLL_P(0);
     }
 
     /* add the item to the estimator (skip NULLs) */
@@ -241,7 +252,7 @@ hyperloglog_add_item_agg_error(PG_FUNCTION_ARGS)
         /* get type information for the second parameter (anyelement item) */
         get_typlenbyvalalign(element_type, &typlen, &typbyval, &typalign);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(hyperloglog->b < 0){
             hyperloglog = hyperloglog_decompress(hyperloglog);
         }	
@@ -279,9 +290,9 @@ hyperloglog_add_item_agg_default(PG_FUNCTION_ARGS)
 
     /* is the counter created (if not, create it - using defaults) */
     if (PG_ARGISNULL(0)) {
-      hyperloglog = hyperloglog_create(DEFAULT_NDISTINCT, DEFAULT_ERROR);
+        hyperloglog = hyperloglog_create(DEFAULT_NDISTINCT, DEFAULT_ERROR);
     } else {
-      hyperloglog = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+        hyperloglog = PG_GETARG_HLL_P(0);
     }
 
     /* add the item to the estimator (skip NULLs) */
@@ -294,7 +305,7 @@ hyperloglog_add_item_agg_default(PG_FUNCTION_ARGS)
         /* get type information for the second parameter (anyelement item) */
         get_typlenbyvalalign(element_type, &typlen, &typbyval, &typalign);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(hyperloglog->b < 0){
             hyperloglog = hyperloglog_decompress(hyperloglog);
         }	
@@ -328,20 +339,20 @@ hyperloglog_merge_simple(PG_FUNCTION_ARGS)
     if (PG_ARGISNULL(0) && PG_ARGISNULL(1)) {
         PG_RETURN_NULL();
     } else if (PG_ARGISNULL(0)) {
-	counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+	    counter2 = PG_GETARG_HLL_P(1);
         PG_RETURN_BYTEA_P(hyperloglog_copy(counter2));
     } else if (PG_ARGISNULL(1)) {
-	counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+	    counter1 = PG_GETARG_HLL_P(0);
         PG_RETURN_BYTEA_P(hyperloglog_copy(counter1));
     } else {
-	counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
-	counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+	    counter1 = PG_GETARG_HLL_P(0);
+	    counter2 = PG_GETARG_HLL_P(1);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(counter1->b < 0){
             counter1 = hyperloglog_decompress(counter1);
         }
-	if(counter2->b < 0){
+	    if(counter2->b < 0){
             counter2 = hyperloglog_decompress(counter2);
         }
 
@@ -358,28 +369,28 @@ hyperloglog_merge_agg(PG_FUNCTION_ARGS)
     HyperLogLogCounter counter2;
 
     if (PG_ARGISNULL(0) && PG_ARGISNULL(1)){
-	/* if both counters are null return null */
+	    /* if both counters are null return null */
     	PG_RETURN_NULL();
 
     } else if (PG_ARGISNULL(0)) {
         /* if first counter is null just copy the second estimator into the first one */
-        counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+        counter1 = PG_GETARG_HLL_P(1);
 
     } else if (PG_ARGISNULL(1)) {
-	/* if second counter is null just return the the first estimator */
-    	counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+	    /* if second counter is null just return the the first estimator */
+    	counter1 = PG_GETARG_HLL_P(0);
 
     } else {
 
         /* ok, we already have the estimator - merge the second one into it */
-        counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
-    	counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+        counter1 = PG_GETARG_HLL_P(0);
+    	counter2 = PG_GETARG_HLL_P(1);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(counter1->b < 0){
             counter1 = hyperloglog_decompress(counter1);
         }
-	if(counter2->b < 0){
+	    if(counter2->b < 0){
             counter2 = hyperloglog_decompress(counter2);
         }
 
@@ -400,7 +411,7 @@ hyperloglog_get_estimate(PG_FUNCTION_ARGS)
 {
 
     double estimate;
-    HyperLogLogCounter hyperloglog = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+    HyperLogLogCounter hyperloglog = PG_GETARG_HLL_P(0);
 
     /* decompress if needed */
     if(hyperloglog->b < 0){
@@ -515,13 +526,13 @@ hyperloglog_size(PG_FUNCTION_ARGS)
 Datum
 hyperloglog_length(PG_FUNCTION_ARGS)
 {
-    PG_RETURN_INT32(VARSIZE((HyperLogLogCounter)PG_GETARG_BYTEA_P(0)));
+    PG_RETURN_INT32(VARSIZE(PG_GETARG_HLL_P(0)));
 }
 
 Datum
 hyperloglog_reset(PG_FUNCTION_ARGS)
 {
-	hyperloglog_reset_internal(((HyperLogLogCounter)PG_GETARG_BYTEA_P(0)));
+	hyperloglog_reset_internal((PG_GETARG_HLL_P(0)));
 	PG_RETURN_VOID();
 }
 
@@ -591,7 +602,7 @@ hyperloglog_comp(PG_FUNCTION_ARGS)
         PG_RETURN_NULL();
     }
 
-    HyperLogLogCounter hyperloglog =  (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+    HyperLogLogCounter hyperloglog =  PG_GETARG_HLL_P(0);
 
     hyperloglog = hyperloglog_compress(hyperloglog);
 
@@ -605,7 +616,7 @@ hyperloglog_decomp(PG_FUNCTION_ARGS)
         PG_RETURN_NULL();
     }
 
-    HyperLogLogCounter hyperloglog =  (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+    HyperLogLogCounter hyperloglog =  PG_GETARG_HLL_P(0);
 
     hyperloglog = hyperloglog_decompress(hyperloglog);
 
@@ -624,14 +635,14 @@ hyperloglog_equal(PG_FUNCTION_ARGS)
     if (PG_ARGISNULL(0) || PG_ARGISNULL(1)) {
         PG_RETURN_NULL();
     } else {
-	counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
-	counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+	    counter1 = PG_GETARG_HLL_P(0);
+	    counter2 = PG_GETARG_HLL_P(1);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(counter1->b < 0){
             counter1 = hyperloglog_decompress(counter1);
         }
-	if(counter2->b < 0){
+	    if(counter2->b < 0){
             counter2 = hyperloglog_decompress(counter2);
         }
 
@@ -650,14 +661,14 @@ hyperloglog_not_equal(PG_FUNCTION_ARGS)
     if (PG_ARGISNULL(0) || PG_ARGISNULL(1)) {
         PG_RETURN_NULL();
     } else {
-	counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
-	counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+	    counter1 = PG_GETARG_HLL_P(0);
+	    counter2 = PG_GETARG_HLL_P(1);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(counter1->b < 0){
             counter1 = hyperloglog_decompress(counter1);
         }
-	if(counter2->b < 0){
+	    if(counter2->b < 0){
             counter2 = hyperloglog_decompress(counter2);
         }
 
@@ -676,32 +687,32 @@ hyperloglog_union(PG_FUNCTION_ARGS)
     if (PG_ARGISNULL(0) && PG_ARGISNULL(1)) {
         PG_RETURN_NULL();
     } else if (PG_ARGISNULL(0)) {
-	counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+	    counter2 = PG_GETARG_HLL_P(1);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(counter2->b < 0){
             counter2 = hyperloglog_decompress(counter2);
         }
 	
         PG_RETURN_FLOAT8(hyperloglog_estimate(counter2));
     } else if (PG_ARGISNULL(1)) {
-	counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+	    counter1 = PG_GETARG_HLL_P(0);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(counter1->b < 0){
             counter1 = hyperloglog_decompress(counter1);
         }
 
         PG_RETURN_FLOAT8(hyperloglog_estimate(counter1));
     } else {
-	counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
-	counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+	    counter1 = PG_GETARG_HLL_P(0);
+	    counter2 = PG_GETARG_HLL_P(1);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(counter1->b < 0){
             counter1 = hyperloglog_decompress(counter1);
         }
-	if(counter2->b < 0){
+	    if(counter2->b < 0){
             counter2 = hyperloglog_decompress(counter2);
         }
 
@@ -720,14 +731,14 @@ hyperloglog_intersection(PG_FUNCTION_ARGS)
     if (PG_ARGISNULL(0) || PG_ARGISNULL(1)) {
         PG_RETURN_NULL();
     } else {
-	counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
-	counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+	    counter1 = PG_GETARG_HLL_P(0);
+	    counter2 = PG_GETARG_HLL_P(1);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(counter1->b < 0){
             counter1 = hyperloglog_decompress(counter1);
         }
-	if(counter2->b < 0){
+	    if(counter2->b < 0){
             counter2 = hyperloglog_decompress(counter2);
         }
 
@@ -750,32 +761,32 @@ hyperloglog_compliment(PG_FUNCTION_ARGS)
     if (PG_ARGISNULL(0) && PG_ARGISNULL(1)) {
         PG_RETURN_NULL();
     } else if (PG_ARGISNULL(0)) {
-	counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+	    counter2 = PG_GETARG_HLL_P(1);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(counter2->b < 0){
             counter2 = hyperloglog_decompress(counter2);
         }
 	
         PG_RETURN_FLOAT8(hyperloglog_estimate(counter2));
     } else if (PG_ARGISNULL(1)) {
-	counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+	    counter1 = PG_GETARG_HLL_P(0);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(counter1->b < 0){
             counter1 = hyperloglog_decompress(counter1);
         }
 
         PG_RETURN_FLOAT8(hyperloglog_estimate(counter1));
     } else {
-	counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
-	counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+	    counter1 = PG_GETARG_HLL_P(0);
+	    counter2 = PG_GETARG_HLL_P(1);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(counter1->b < 0){
             counter1 = hyperloglog_decompress(counter1);
         }
-	if(counter2->b < 0){
+    	if(counter2->b < 0){
             counter2 = hyperloglog_decompress(counter2);
         }
 
@@ -797,32 +808,32 @@ hyperloglog_symmetric_diff(PG_FUNCTION_ARGS)
     if (PG_ARGISNULL(0) && PG_ARGISNULL(1)) {
         PG_RETURN_NULL();
     } else if (PG_ARGISNULL(0)) {
-	counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+	    counter2 = PG_GETARG_HLL_P(1);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(counter2->b < 0){
             counter2 = hyperloglog_decompress(counter2);
         }
 	
         PG_RETURN_FLOAT8(hyperloglog_estimate(counter2));
     } else if (PG_ARGISNULL(1)) {
-	counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+	    counter1 = PG_GETARG_HLL_P(0);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(counter1->b < 0){
             counter1 = hyperloglog_decompress(counter1);
         }
 
         PG_RETURN_FLOAT8(hyperloglog_estimate(counter1));
     } else {
-	counter1 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
-	counter2 = (HyperLogLogCounter)PG_GETARG_BYTEA_P(1);
+	    counter1 = PG_GETARG_HLL_P(0);
+	    counter2 = PG_GETARG_HLL_P(1);
 
-	/* decompress if needed */
+	    /* decompress if needed */
         if(counter1->b < 0){
             counter1 = hyperloglog_decompress(counter1);
         }
-	if(counter2->b < 0){
+	    if(counter2->b < 0){
             counter2 = hyperloglog_decompress(counter2);
         } 
 
