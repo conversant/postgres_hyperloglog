@@ -598,11 +598,13 @@ hyperloglog_send(PG_FUNCTION_ARGS)
 Datum
 hyperloglog_comp(PG_FUNCTION_ARGS)
 {
+    HyperLogLogCounter hyperloglog;
+
     if (PG_ARGISNULL(0) ){
         PG_RETURN_NULL();
     }
 
-    HyperLogLogCounter hyperloglog =  PG_GETARG_HLL_P(0);
+    hyperloglog =  PG_GETARG_HLL_P(0);
 
     hyperloglog = hyperloglog_compress(hyperloglog);
 
@@ -612,11 +614,13 @@ hyperloglog_comp(PG_FUNCTION_ARGS)
 Datum
 hyperloglog_decomp(PG_FUNCTION_ARGS)
 {
+    HyperLogLogCounter hyperloglog;
+
     if (PG_ARGISNULL(0) ){
         PG_RETURN_NULL();
     }
 
-    HyperLogLogCounter hyperloglog =  PG_GETARG_HLL_P(0);
+    hyperloglog =  PG_GETARG_HLL_P(0);
 
     hyperloglog = hyperloglog_decompress(hyperloglog);
 
@@ -727,6 +731,7 @@ hyperloglog_intersection(PG_FUNCTION_ARGS)
 
     HyperLogLogCounter counter1;
     HyperLogLogCounter counter2;
+    double A, B , AUB;
 
     if (PG_ARGISNULL(0) || PG_ARGISNULL(1)) {
         PG_RETURN_NULL();
@@ -742,7 +747,6 @@ hyperloglog_intersection(PG_FUNCTION_ARGS)
             counter2 = hyperloglog_decompress(counter2);
         }
 
-        double A, B , AUB;
         A = hyperloglog_estimate(counter1);
         B = hyperloglog_estimate(counter2);
         AUB = hyperloglog_estimate(hyperloglog_merge(counter1, counter2,false));
@@ -757,6 +761,7 @@ hyperloglog_compliment(PG_FUNCTION_ARGS)
 
     HyperLogLogCounter counter1;
     HyperLogLogCounter counter2;
+    double B, AUB;
 
     if (PG_ARGISNULL(0) && PG_ARGISNULL(1)) {
         PG_RETURN_NULL();
@@ -790,7 +795,6 @@ hyperloglog_compliment(PG_FUNCTION_ARGS)
             counter2 = hyperloglog_decompress(counter2);
         }
 
-        double B, AUB;
         B = hyperloglog_estimate(counter2);
         AUB = hyperloglog_estimate(hyperloglog_merge(counter1, counter2,false));
         PG_RETURN_FLOAT8(AUB - B);
@@ -804,6 +808,7 @@ hyperloglog_symmetric_diff(PG_FUNCTION_ARGS)
 
     HyperLogLogCounter counter1;
     HyperLogLogCounter counter2;
+    double A, B , AUB;
 
     if (PG_ARGISNULL(0) && PG_ARGISNULL(1)) {
         PG_RETURN_NULL();
@@ -837,7 +842,6 @@ hyperloglog_symmetric_diff(PG_FUNCTION_ARGS)
             counter2 = hyperloglog_decompress(counter2);
         } 
 
-        double A, B , AUB;
         A = hyperloglog_estimate(counter1);
         B = hyperloglog_estimate(counter2);
         AUB = hyperloglog_estimate(hyperloglog_merge(counter1, counter2,false));

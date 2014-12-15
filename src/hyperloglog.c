@@ -254,15 +254,16 @@ uint64_t MurmurHash64A (const void * key, int len, unsigned int seed) {
 HyperLogLogCounter hyperloglog_create(double ndistinct, float error) {
 
     float m;
-
+    size_t length;
+    HyperLogLogCounter p;
+    
     /* target error rate needs to be between 0 and 1 */
     if (error <= 0 || error >= 1)
         elog(ERROR, "invalid error rate requested - only values in (0,1) allowed");
 
-    size_t length = hyperloglog_get_size(ndistinct, error);
-
-    /* the bitmap is allocated as part of this memory block (-1 as one bin is already in) */
-    HyperLogLogCounter p = (HyperLogLogCounter)palloc0(length);
+    /* the counter is allocated as part of this memory block  */
+    length = hyperloglog_get_size(ndistinct, error);
+    p = (HyperLogLogCounter)palloc0(length);
 
     /* set the counter struct version */
     p->version = STRUCT_VERSION;
@@ -380,7 +381,7 @@ int hyperloglog_get_size(double ndistinct, float error) {
 double hyperloglog_estimate(HyperLogLogCounter hloglog) {
 
     double H = 0, E = 0;
-    int j;
+    int j, V=0;
     uint8_t entry;
     int m = (int)ceil(pow(2,hloglog->b));
 
@@ -401,7 +402,6 @@ double hyperloglog_estimate(HyperLogLogCounter hloglog) {
 	E = E - error_estimate(E,hloglog->b);
 
         /* search for empty registers for linear counting */
-        int V = 0;
         for (j = 0; j < m; j++){
             HLL_DENSE_GET_REGISTER(entry,hloglog->data,j,hloglog->binbits);
             if (entry == 0){
@@ -527,16 +527,15 @@ void hyperloglog_reset_internal(HyperLogLogCounter hloglog) {
 
 /* check the equality by comparing the register values not the cardinalities */
 int hyperloglog_is_equal(HyperLogLogCounter counter1, HyperLogLogCounter counter2){
-    
+   
+    uint8_t entry1,entry2;
+    int i, m = (int)ceil(pow(2,counter1->b));
+ 
     /* check compatibility first */
     if (counter1->b != counter2->b)
         elog(ERROR, "index size (bit length) of estimators differs (%d != %d)", counter1->b, counter2->b);
     else if (counter1->binbits != counter2->binbits)
         elog(ERROR, "bin size of estimators differs (%d != %d)", counter1->binbits, counter2->binbits);
-
-    uint8_t entry1,entry2;
-    int m = (int)ceil(pow(2,counter1->b));
-    int i;
 
     /* compare registers returning false on any difference */
     for (i = 0; i < m; i++){
@@ -551,6 +550,10 @@ int hyperloglog_is_equal(HyperLogLogCounter counter1, HyperLogLogCounter counter
 }
 
 HyperLogLogCounter hyperloglog_compress(HyperLogLogCounter hloglog){
+    PGLZ_Header * dest;
+    char entry,*data;    
+    int i, m = (int)pow(2,hloglog->b);
+
     /* make sure the data isn't compressed already */
     if (hloglog->b < 0) {
         return hloglog;
@@ -559,11 +562,8 @@ HyperLogLogCounter hyperloglog_compress(HyperLogLogCounter hloglog){
     /* make sure the dest struct has enough space for an unsuccessful compression
      * and a 4 bytes of overflow since lz might not recognize its over until then
      * preventing segfaults */
-    PGLZ_Header * dest;
-    int i, m = (int)pow(2,hloglog->b);
     dest = malloc(m + sizeof(PGLZ_Header) + 4);
     memset(dest,0,m + sizeof(PGLZ_Header) + 4);
-    char entry,*data;
     data = malloc(m);
 
     /* put all registers in a normal array  i.e. remove dense packing so
@@ -577,7 +577,7 @@ HyperLogLogCounter hyperloglog_compress(HyperLogLogCounter hloglog){
      * if any compression was acheived */
     pglz_compress(data,m,dest,PGLZ_strategy_always);
     if (VARSIZE(dest) >= (m * hloglog->binbits /8) ){
-	return hloglog;
+    	return hloglog;
     }
     memcpy(hloglog->data,dest,VARSIZE(dest));
 
@@ -600,6 +600,10 @@ HyperLogLogCounter hyperloglog_compress(HyperLogLogCounter hloglog){
 }
 
 HyperLogLogCounter hyperloglog_decompress(HyperLogLogCounter hloglog){
+    char * dest;
+    int m,i;
+    HyperLogLogCounter htemp;    
+
     /* make sure the data is compressed */
     if (hloglog->b > 0) {
         return hloglog;
@@ -609,18 +613,16 @@ HyperLogLogCounter hyperloglog_decompress(HyperLogLogCounter hloglog){
     hloglog->b = -1 * (hloglog->b);
 
     /* allocate and zero an array large enough to hold all the decompressed bins */
-    int m = (int) pow(2,hloglog->b);
-    char * dest;
+    m = (int) pow(2,hloglog->b);
     dest = malloc(m);
     memset(dest,0,m);
 
     /* decompress the data */
-    int i;
     pglz_decompress((PGLZ_Header *)hloglog->data,dest);
 
     /* copy the struct internals but not the data into a counter with enough space
      * for the uncompressed data  */
-    HyperLogLogCounter htemp = palloc(sizeof(HyperLogLogCounterData) + (int)ceil((m * hloglog->binbits / 8.0)));
+    htemp = palloc(sizeof(HyperLogLogCounterData) + (int)ceil((m * hloglog->binbits / 8.0)));
     memcpy(htemp,hloglog,sizeof(HyperLogLogCounterData));
     hloglog = htemp;
 
