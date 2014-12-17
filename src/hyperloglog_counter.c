@@ -164,8 +164,12 @@ hyperloglog_add_item_agg(PG_FUNCTION_ARGS)
     bool        typbyval;
     char        typalign;
 
-    /* create a new estimator (with requested error rate) or reuse the existing one */
-    if (PG_ARGISNULL(0)) {
+    /* Create a new estimator (with requested error rate and ndistinct) or reuse the 
+     * existing one.  Return null if both counter and element args are null. This 
+     * prevents excess empty counter creation */
+    if (PG_ARGISNULL(0) && PG_ARGISNULL(1)){
+        PG_RETURN_NULL();
+    } else if (PG_ARGISNULL(0) && !PG_ARGISNULL(1)) {
 
         errorRate = PG_GETARG_FLOAT4(2);
 	    ndistinct = PG_GETARG_FLOAT8(3);
@@ -227,8 +231,12 @@ hyperloglog_add_item_agg_error(PG_FUNCTION_ARGS)
     bool        typbyval;
     char        typalign;
 
-    /* create a new estimator (with requested error rate) or reuse the existing one */
-    if (PG_ARGISNULL(0)) {
+    /* Create a new estimator (with requested error rate) or reuse the existing one. 
+     * Return null if both counter and element args are null. This prevents excess empty
+     * counter creation */
+    if (PG_ARGISNULL(0) && PG_ARGISNULL(1)){
+        PG_RETURN_NULL();
+    } else if (PG_ARGISNULL(0)) {
 
         errorRate = PG_GETARG_FLOAT4(2);
 
@@ -287,9 +295,13 @@ hyperloglog_add_item_agg_default(PG_FUNCTION_ARGS)
     int16       typlen;
     bool        typbyval;
     char        typalign;
-
-    /* is the counter created (if not, create it - using defaults) */
-    if (PG_ARGISNULL(0)) {
+    
+    /* Create a new estimator (using defaults) or reuse the existing one.
+     * Return null if both counter and element args are null. This prevents excess empty
+     * counter creation */
+    if (PG_ARGISNULL(0) && PG_ARGISNULL(1)){
+        PG_RETURN_NULL();
+    } else if (PG_ARGISNULL(0)) {
         hyperloglog = hyperloglog_create(DEFAULT_NDISTINCT, DEFAULT_ERROR);
     } else {
         hyperloglog = PG_GETARG_HLL_P(0);
