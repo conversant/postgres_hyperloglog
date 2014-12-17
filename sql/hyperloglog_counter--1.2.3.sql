@@ -34,7 +34,10 @@ CREATE TYPE hyperloglog_estimator (
 );
 
 -- allow cast from bytea to hyperloglog_estimator
-CREATE CAST (bytea as hyperloglog_estimator) WITHOUT FUNCTION;
+CREATE CAST (bytea as hyperloglog_estimator) WITHOUT FUNCTION AS ASSIGNMENT;
+
+-- allow cast from bytea to hyperloglog_estimator
+CREATE CAST (hyperloglog_estimator as bytea) WITHOUT FUNCTION AS ASSIGNMENT;
 
 /* compress/decompress inner data funcitons */
 CREATE FUNCTION hyperloglog_comp(counter hyperloglog_estimator) RETURNS hyperloglog_estimator
