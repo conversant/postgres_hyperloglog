@@ -577,6 +577,13 @@ HyperLogLogCounter hyperloglog_compress(HyperLogLogCounter hloglog){
      * if any compression was acheived */
     pglz_compress(data,m,dest,PGLZ_strategy_always);
     if (VARSIZE(dest) >= (m * hloglog->binbits /8) ){
+	/* free allocated memory and return unaltered array */
+    	if (dest){
+            free(dest);
+    	}
+    	if (data){
+            free(data);
+    	}
     	return hloglog;
     }
     memcpy(hloglog->data,dest,VARSIZE(dest));
