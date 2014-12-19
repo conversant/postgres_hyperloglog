@@ -134,13 +134,13 @@ hyperloglog_add_item(PG_FUNCTION_ARGS)
         /* it this a varlena type, passed by reference or by value ? */
         if (typlen == -1) {
             /* varlena */
-            hyperloglog_add_element(hyperloglog, VARDATA(element), VARSIZE(element) - VARHDRSZ);
+            hyperloglog = hyperloglog_add_element(hyperloglog, VARDATA(element), VARSIZE(element) - VARHDRSZ);
         } else if (typbyval) {
             /* fixed-length, passed by value */
-            hyperloglog_add_element(hyperloglog, (char*)&element, typlen);
+            hyperloglog = hyperloglog_add_element(hyperloglog, (char*)&element, typlen);
         } else {
             /* fixed-length, passed by reference */
-            hyperloglog_add_element(hyperloglog, (char*)element, typlen);
+            hyperloglog = hyperloglog_add_element(hyperloglog, (char*)element, typlen);
         }
 
     }
@@ -202,13 +202,13 @@ hyperloglog_add_item_agg(PG_FUNCTION_ARGS)
         /* it this a varlena type, passed by reference or by value ? */
         if (typlen == -1) {
             /* varlena */
-            hyperloglog_add_element(hyperloglog, VARDATA(element), VARSIZE(element) - VARHDRSZ);
+            hyperloglog = hyperloglog_add_element(hyperloglog, VARDATA(element), VARSIZE(element) - VARHDRSZ);
         } else if (typbyval) {
             /* fixed-length, passed by value */
-            hyperloglog_add_element(hyperloglog, (char*)&element, typlen);
+            hyperloglog = hyperloglog_add_element(hyperloglog, (char*)&element, typlen);
         } else {
             /* fixed-length, passed by reference */
-            hyperloglog_add_element(hyperloglog, (char*)element, typlen);
+            hyperloglog = hyperloglog_add_element(hyperloglog, (char*)element, typlen);
         }
     }
 
@@ -268,13 +268,13 @@ hyperloglog_add_item_agg_error(PG_FUNCTION_ARGS)
         /* it this a varlena type, passed by reference or by value ? */
         if (typlen == -1) {
             /* varlena */
-            hyperloglog_add_element(hyperloglog, VARDATA(element), VARSIZE(element) - VARHDRSZ);
+            hyperloglog = hyperloglog_add_element(hyperloglog, VARDATA(element), VARSIZE(element) - VARHDRSZ);
         } else if (typbyval) {
             /* fixed-length, passed by value */
-            hyperloglog_add_element(hyperloglog, (char*)&element, typlen);
+            hyperloglog = hyperloglog_add_element(hyperloglog, (char*)&element, typlen);
         } else {
             /* fixed-length, passed by reference */
-            hyperloglog_add_element(hyperloglog, (char*)element, typlen);
+            hyperloglog = hyperloglog_add_element(hyperloglog, (char*)element, typlen);
         }
     }
 
@@ -325,13 +325,13 @@ hyperloglog_add_item_agg_default(PG_FUNCTION_ARGS)
         /* it this a varlena type, passed by reference or by value ? */
         if (typlen == -1) {
             /* varlena */
-            hyperloglog_add_element(hyperloglog, VARDATA(element), VARSIZE(element) - VARHDRSZ);
+            hyperloglog = hyperloglog_add_element(hyperloglog, VARDATA(element), VARSIZE(element) - VARHDRSZ);
         } else if (typbyval) {
             /* fixed-length, passed by value */
-            hyperloglog_add_element(hyperloglog, (char*)&element, typlen);
+            hyperloglog = hyperloglog_add_element(hyperloglog, (char*)&element, typlen);
         } else {
             /* fixed-length, passed by reference */
-            hyperloglog_add_element(hyperloglog, (char*)element, typlen);
+            hyperloglog = hyperloglog_add_element(hyperloglog, (char*)element, typlen);
         }
 
     }
@@ -490,17 +490,7 @@ hyperloglog_init(PG_FUNCTION_ARGS)
 Datum
 hyperloglog_size_default(PG_FUNCTION_ARGS)
 {
-
-      float errorRate; /* required error rate */
-
-      errorRate = PG_GETARG_FLOAT4(0);
-
-      /* error rate between 0 and 1 (not 0) */
-      if ((errorRate <= 0) || (errorRate > 1)) {
-          elog(ERROR, "error rate has to be between 0 and 1");
-      }
-
-      PG_RETURN_INT32(hyperloglog_get_size(DEFAULT_NDISTINCT, errorRate));
+      PG_RETURN_INT32(hyperloglog_get_size(DEFAULT_NDISTINCT, DEFAULT_ERROR));
 }
 
 Datum

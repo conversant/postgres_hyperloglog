@@ -182,11 +182,18 @@ double PE[64] = { 1.,
         0.00000000000000000021684043449710089,
         0.00000000000000000010842021724855044};
 
-double hyperloglog_estimate(HyperLogLogCounter hloglog);
+double hyperloglog_estimate_dense(HyperLogLogCounter hloglog);
+double hyperloglog_estimate_sparse(HyperLogLogCounter hloglog);
 double error_estimate(double E,int b);
 
-void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash);
+HyperLogLogCounter hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash);
+HyperLogLogCounter hyperloglog_add_hash_sparse(HyperLogLogCounter hloglog, uint64_t hash);
+uint32_t encode_hash(uint64_t hash, HyperLogLogCounter hloglog);
+HyperLogLogCounter sparse_to_dense(HyperLogLogCounter hloglog);
+
+int hyperloglog_get_size_sparse(double ndistinct, float error);
 void hyperloglog_reset_internal(HyperLogLogCounter hloglog);
+int compare_uints (const void *a, const void *b);
 uint64_t MurmurHash64A (const void * key, int len, unsigned int seed);
 
 /* MurmurHash64A produces the fastest 64 bit hash of the MurmurHash implementations
@@ -262,7 +269,7 @@ HyperLogLogCounter hyperloglog_create(double ndistinct, float error) {
         elog(ERROR, "invalid error rate requested - only values in (0,1) allowed");
 
     /* the counter is allocated as part of this memory block  */
-    length = hyperloglog_get_size(ndistinct, error);
+    length = hyperloglog_get_size_sparse(ndistinct, error);
     p = (HyperLogLogCounter)palloc0(length);
 
     /* set the counter struct version */
@@ -277,6 +284,8 @@ HyperLogLogCounter hyperloglog_create(double ndistinct, float error) {
 
     /* set the number of bits per bin */
     p->binbits = (uint8_t)ceil(log2(log2(ndistinct)));
+
+    p->idx = 0;
 
     if (p->b < MIN_INDEX_BITS)   /* we want at least 2^4 (=16) bins */
         p->b = MIN_INDEX_BITS;
@@ -312,7 +321,8 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
 
     int i;
     HyperLogLogCounter result;
-    uint8_t resultcount, countercount;
+    uint8_t resultcount, countercount,rho,entry;
+    uint32_t * sparse_data, * sparse_data_result,idx;
 
     /* check compatibility first */
     if (counter1->b != counter2->b)
@@ -327,13 +337,67 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
         result = counter1;
 
     /* Keep the maximum register value for each bin */
-    for (i = 0; i < pow(2, result->b); i++){
-        HLL_DENSE_GET_REGISTER(resultcount,result->data,i,result->binbits);
-        HLL_DENSE_GET_REGISTER(countercount,counter2->data,i,counter2->binbits);
-        if (resultcount < countercount) {
-            HLL_DENSE_SET_REGISTER(result->data,i,countercount,result->binbits);
+    if (result->idx == -1 && counter2->idx == -1){
+        for (i = 0; i < pow(2, result->b); i++){
+            HLL_DENSE_GET_REGISTER(resultcount,result->data,i,result->binbits);
+            HLL_DENSE_GET_REGISTER(countercount,counter2->data,i,counter2->binbits);
+            if (resultcount < countercount) {
+                HLL_DENSE_SET_REGISTER(result->data,i,countercount,result->binbits);
+            }
         }
-    }   
+    } else if (result->idx == -1) {
+        sparse_data = (uint32_t *) counter2->data;
+        
+        for (i=0; i < counter2->idx; i++){
+            idx = sparse_data[i];
+            
+            /* if last bit is 1 then rho is the preceding ~6 bits
+             * otherwise rho can be calculated from the leading bits*/
+            if (sparse_data[i] & 1) {
+                /* grab the binbits before the indicator bit and add that to the number of zero bits in p-p' */
+                idx = idx >> (32 - result->b);
+                rho = ((sparse_data[i] & (int)(pow(2,result->binbits+1) - 2)) >> 1) + (32 - 1 - result->b - result->binbits);
+            } else {
+                idx = (idx << result->binbits) >> result->binbits;
+                idx  = idx >> (32 - (result->binbits+ result->b));
+                rho = __builtin_clzll(sparse_data[i] << (result->binbits+ result->b)) + 1;
+            }
+            
+            /* keep the highest value */
+            HLL_DENSE_GET_REGISTER(entry,result->data,idx,result->binbits);
+            if (rho > entry) {
+                HLL_DENSE_SET_REGISTER(result->data,idx,rho,result->binbits);
+            }
+ 
+         }
+    } else if (counter2->idx == -1) {
+        result = sparse_to_dense(result);
+        for (i = 0; i < pow(2, result->b); i++){
+            HLL_DENSE_GET_REGISTER(resultcount,result->data,i,result->binbits);
+            HLL_DENSE_GET_REGISTER(countercount,counter2->data,i,counter2->binbits);
+            if (resultcount < countercount) {
+                HLL_DENSE_SET_REGISTER(result->data,i,countercount,result->binbits);
+            }
+        }
+    } else {
+        sparse_data = (uint32_t *) counter2->data;
+        sparse_data_result = (uint32_t *) result->data;
+        
+        if (result->idx + counter2->idx > pow(2,(result->b - 4))){
+            result = sparse_to_dense(result);
+            result = hyperloglog_merge(result,counter2,1);
+        } else {
+            for (i=0; i < counter2->idx; i++){
+                sparse_data_result[result->idx++] = sparse_data[i];
+                
+                if (result->idx > pow(2,(result->b - 4))) {
+                    result = sparse_to_dense(result);
+                    result = hyperloglog_merge(result,counter2,1);            
+                    break;
+                }
+            }
+        }
+    }
 
     return result;
 
@@ -368,6 +432,44 @@ int hyperloglog_get_size(double ndistinct, float error) {
 
 }
 
+int hyperloglog_get_size_sparse(double ndistinct, float error) {
+
+  int b;
+  float m;
+  if (error <= 0 || error >= 1)
+      elog(ERROR, "invalid error rate requested");
+
+  m = ERROR_CONST / (error * error);
+  b = (int)ceil(log2(m));
+  
+  if (b < MIN_INDEX_BITS)
+      b = MIN_INDEX_BITS;
+  else if (b > MAX_INDEX_BITS)
+      elog(ERROR, "number of index bits exceeds MAX_INDEX_BITS (requested %d)",b);
+
+  /* The size is the sum of the struct overhead and the bytes the used to store
+   * the buckets. Which is the product of the number of buckets and the
+   * (bits per bucket)/ 8 where 8 is the amount of bits per byte.
+   *
+   *  size_in_bytes = struct_overhead + num_buckets*(bits_per_bucket/8)
+   *
+   * */
+  return sizeof(HyperLogLogCounterData) + (int)pow(2,b-2);
+
+}
+
+
+double hyperloglog_estimate(HyperLogLogCounter hloglog) {
+    double E;
+    
+    if (hloglog->idx == -1){
+        E = hyperloglog_estimate_dense(hloglog);
+    } else {
+        E = hyperloglog_estimate_sparse(hloglog);
+    }
+
+    return E;
+}
 /*
  * Computes the HLL estimate, as described in the paper.
  * 
@@ -378,7 +480,7 @@ int hyperloglog_get_size(double ndistinct, float error) {
  * 3) corrects the estimate for low values
  * 
  */
-double hyperloglog_estimate(HyperLogLogCounter hloglog) {
+double hyperloglog_estimate_dense(HyperLogLogCounter hloglog) {
 
     double H = 0, E = 0;
     int j, V=0;
@@ -410,7 +512,7 @@ double hyperloglog_estimate(HyperLogLogCounter hloglog) {
         }
 
         /* Don't use linear counting if there are no empty registers since we don't
-	 * to divide by 0 */
+	     * to divide by 0 */
         if (V != 0){
             H = m * log(m / (float)V);
         } else {
@@ -466,7 +568,26 @@ double error_estimate(double E,int b){
     return avg;
 }
 
-void hyperloglog_add_element(HyperLogLogCounter hloglog, const char * element, int elen) {
+double hyperloglog_estimate_sparse(HyperLogLogCounter hloglog){
+    int i,V,m = pow(2,(32 - 1 - hloglog->binbits));
+    uint32_t * sparse_data = (uint32_t *) hloglog->data;
+
+    qsort(hloglog->data,hloglog->idx, sizeof(uint32_t),compare_uints);
+
+    V = 0;
+    for (i=0; i < hloglog->idx ; i++){
+        if (i == 0){
+            V++;
+        } else if (sparse_data[i] != sparse_data[i-1]){
+            V++;
+        }
+    }
+
+    return  m * log(m / (double)(m-V));
+
+}
+
+HyperLogLogCounter hyperloglog_add_element(HyperLogLogCounter hloglog, const char * element, int elen) {
 
     uint64_t hash;
 
@@ -474,15 +595,20 @@ void hyperloglog_add_element(HyperLogLogCounter hloglog, const char * element, i
     hash = MurmurHash64A(element, elen, HASH_SEED);    
 
     /* add the hash to the estimator */
-    hyperloglog_add_hash(hloglog, hash);
+    if (hloglog->idx == -1 ){
+        hloglog = hyperloglog_add_hash(hloglog, hash);
+    } else {
+        hloglog = hyperloglog_add_hash_sparse(hloglog, hash);
+    }
 
+    return hloglog;
 }
 
 
-void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
+HyperLogLogCounter hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
 
     uint64_t idx;
-    uint8_t rho,entry;
+    uint8_t rho,entry,addn;
 
     /* get idx (keep only the first 'b' bits) */
     idx  = hash >> (HASH_LENGTH - hloglog->b);
@@ -499,13 +625,13 @@ void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
      * which is currently supported nor really necessary due to 2^(2^8) ~ 1.16E77 
      * a number so large its not feasible to have that many unique elements. */
     if (rho == HASH_LENGTH){
-	uint8_t addn = HASH_LENGTH;
-	rho = (HASH_LENGTH - hloglog->b);
-	while (addn == HASH_LENGTH && rho < pow(2,hloglog->binbits)){
-		hash = MurmurHash64A((const char * )&hash, HASH_LENGTH/8, HASH_SEED);
-		addn = __builtin_clzll(hash) + 1; // zero length runs should be 1 so counter gets set
-		rho += addn;
-	}
+	    addn = HASH_LENGTH;
+	    rho = (HASH_LENGTH - hloglog->b);
+	    while (addn == HASH_LENGTH && rho < pow(2,hloglog->binbits)){
+		    hash = MurmurHash64A((const char * )&hash, HASH_LENGTH/8, HASH_SEED);
+		    addn = __builtin_clzll(hash) + 1; // zero length runs should be 1 so counter gets set
+		    rho += addn;
+	    }
     }
 
     /* keep the highest value */
@@ -514,23 +640,135 @@ void hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t hash) {
         HLL_DENSE_SET_REGISTER(hloglog->data,idx,rho,hloglog->binbits);
     }
     
+    return hloglog;
 
 }
+
+HyperLogLogCounter hyperloglog_add_hash_sparse(HyperLogLogCounter hloglog, uint64_t hash) {
+
+    uint32_t encoded_hash;
+    uint32_t * bigdata;
+
+    bigdata = (uint32_t *) hloglog->data;
+    encoded_hash = encode_hash(hash,hloglog);
+
+    bigdata[hloglog->idx++] = encoded_hash;
+
+    if (hloglog->idx > pow(2,(hloglog->b - 4))){
+        hloglog = sparse_to_dense(hloglog);
+    }
+    
+    return hloglog;
+}
+
+uint32_t encode_hash(uint64_t hash, HyperLogLogCounter hloglog){
+    uint32_t encode = 0;
+    uint64_t idx;
+    uint8_t rho,addn;
+
+    /* which stream is this (keep only the first p' bits) */
+    idx  = hash >> (HASH_LENGTH - (32 - 1 - hloglog->binbits));
+
+    /* check p-p' bits for significant digit */
+    if (idx & (int)(pow(2,(32 - 1 - hloglog->b - hloglog->binbits)) -1) ){
+        encode = idx << 1;
+    } else {
+        encode = idx << hloglog->binbits;
+        rho = __builtin_clzll(hash<<(32- 1 - hloglog->binbits)) + 1;
+        if (rho == HASH_LENGTH){
+            addn = HASH_LENGTH;
+            rho = (HASH_LENGTH - (32- 1 - hloglog->binbits));
+            while (addn == HASH_LENGTH && rho < pow(2,hloglog->binbits)){
+                hash = MurmurHash64A((const char * )&hash, HASH_LENGTH/8, HASH_SEED);
+                addn = __builtin_clzll(hash) + 1; // zero length runs should be 1 so counter gets set
+                rho += addn;
+            }
+        }
+        encode = encode + rho;
+        encode = (encode << 1);
+        encode = encode + 1;
+    }
+
+    return encode;
+}
+
+HyperLogLogCounter sparse_to_dense(HyperLogLogCounter hloglog){
+    HyperLogLogCounter htemp;
+    uint32_t * sparse_data;
+    uint32_t idx;
+    uint8_t rho,entry;
+    int i, m = pow(2,hloglog->b);
+
+    if (hloglog->idx == -1){
+        return hloglog;
+    }
+
+    sparse_data = malloc(hloglog->idx*sizeof(uint32_t));
+    memmove(sparse_data,&hloglog->data,hloglog->idx*sizeof(uint32_t));
+    htemp = palloc0(sizeof(HyperLogLogCounterData) + (int)ceil((m * hloglog->binbits / 8.0)));
+    memcpy(htemp,hloglog,sizeof(HyperLogLogCounterData));
+    hloglog = htemp;
+
+    for (i=0; i < hloglog->idx; i++){
+        idx = sparse_data[i];
+
+        /* if last bit is 1 then rho is the preceding ~6 bits
+         * otherwise rho can be calculated from the leading bits*/
+        if (sparse_data[i] & 1) {
+            /* grab the binbits before the indicator bit and add that to the number of zero bits in p-p' */
+            idx = idx >> (32 - hloglog->b);
+            rho = ((sparse_data[i] & (int)(pow(2,hloglog->binbits+1) - 2)) >> 1) + (32 - 1 - hloglog->b - hloglog->binbits);
+        } else {
+            idx = (idx << hloglog->binbits) >> hloglog->binbits;
+            idx  = idx >> (32 - (hloglog->binbits+ hloglog->b));
+            rho = __builtin_clzll(sparse_data[i] << (hloglog->binbits+ hloglog->b)) + 1;
+        }
+        
+        /* keep the highest value */
+        HLL_DENSE_GET_REGISTER(entry,hloglog->data,idx,hloglog->binbits);
+        if (rho > entry) {
+            HLL_DENSE_SET_REGISTER(hloglog->data,idx,rho,hloglog->binbits);
+        }
+
+    }
+    
+    if (sparse_data){
+        free(sparse_data);
+    }
+    
+    SET_VARSIZE(hloglog,sizeof(HyperLogLogCounterData) + (int)ceil((m * hloglog->binbits / 8.0)) );    
+
+    hloglog->idx = -1;
+
+    return hloglog;
+}
+
 
 /* Just reset the counter (set all the counters to 0). We do this by
  * zeroing the data array */
 void hyperloglog_reset_internal(HyperLogLogCounter hloglog) {
 
-    memset(hloglog->data, 0, (int)pow(2,hloglog->b));
+    memset(hloglog->data, 0, VARSIZE(hloglog) - sizeof(HyperLogLogCounterData) );
 
+}
+
+int compare_uints (const void *a, const void *b){
+    const unsigned long long *x = a, *y = b;
+    if(*x > *y){
+        return 1;
+    } else {
+        return(*x < *y) ? -1: 0;
+    }
 }
 
 /* check the equality by comparing the register values not the cardinalities */
 int hyperloglog_is_equal(HyperLogLogCounter counter1, HyperLogLogCounter counter2){
    
     uint8_t entry1,entry2;
-    int i, m = (int)ceil(pow(2,counter1->b));
- 
+    HyperLogLogCounter counter1copy,counter2copy;
+    uint32_t * sparse_data1, *sparse_data2;
+    int i,j, m = (int)ceil(pow(2,counter1->b)); 
+
     /* check compatibility first */
     if (counter1->b != counter2->b)
         elog(ERROR, "index size (bit length) of estimators differs (%d != %d)", counter1->b, counter2->b);
@@ -538,12 +776,73 @@ int hyperloglog_is_equal(HyperLogLogCounter counter1, HyperLogLogCounter counter
         elog(ERROR, "bin size of estimators differs (%d != %d)", counter1->binbits, counter2->binbits);
 
     /* compare registers returning false on any difference */
-    for (i = 0; i < m; i++){
-        HLL_DENSE_GET_REGISTER(entry1,counter1->data,i,counter1->binbits);
-        HLL_DENSE_GET_REGISTER(entry2,counter2->data,i,counter2->binbits);
-        if (entry1 != entry2){
+    if (counter1->idx == -1 && counter2->idx == -1){
+        for (i = 0; i < m; i++){
+            HLL_DENSE_GET_REGISTER(entry1,counter1->data,i,counter1->binbits);
+            HLL_DENSE_GET_REGISTER(entry2,counter2->data,i,counter2->binbits);
+            if (entry1 != entry2){
+                return 0;
+            }
+        }
+    } else if (counter1->idx == -1) {
+        counter2copy = sparse_to_dense(counter2);
+        for (i = 0; i < m; i++){
+            HLL_DENSE_GET_REGISTER(entry1,counter1->data,i,counter1->binbits);
+            HLL_DENSE_GET_REGISTER(entry2,counter2copy->data,i,counter2copy->binbits);
+            if (entry1 != entry2){
+                return 0;
+            }
+        }
+    } else if (counter2->idx == -1) {
+        counter1copy = sparse_to_dense(counter1);
+        for (i = 0; i < m; i++){
+            HLL_DENSE_GET_REGISTER(entry1,counter1copy->data,i,counter1copy->binbits);
+            HLL_DENSE_GET_REGISTER(entry2,counter2->data,i,counter2->binbits);
+            if (entry1 != entry2){
+                return 0;
+            }
+        }
+    } else {
+        counter1copy = hyperloglog_copy(counter1);
+        counter2copy = hyperloglog_copy(counter2);
+        sparse_data1 = (uint32_t *) counter1copy->data;
+        sparse_data2 = (uint32_t *) counter2copy->data;
+
+        qsort(counter1copy->data,counter1copy->idx, sizeof(uint32_t),compare_uints);
+        qsort(counter2copy->data,counter2copy->idx, sizeof(uint32_t),compare_uints);
+
+        j = 0;
+        for (i=0; i < counter1copy->idx ; i++){
+            if (i == 0){
+                j++;
+                continue;
+            } else if (sparse_data1[i] != sparse_data1[j - 1]){
+                sparse_data1[j++] = sparse_data1[i];
+            }
+        }
+        counter1copy->idx = j;
+
+        j = 0;
+        for (i=0; i < counter2copy->idx ; i++){
+            if (i == 0){
+                j++;
+                continue;
+            } else if (sparse_data2[i] != sparse_data2[j - 1]){
+                sparse_data2[j++] = sparse_data2[i];
+            }
+        }
+        counter2copy->idx = j;
+        
+        if (counter1copy->idx != counter2copy->idx){
             return 0;
         }
+
+        for (i=0; i < counter1copy->idx ; i++){
+            if (sparse_data1[i] != sparse_data2[i]){
+                return 0;
+            }
+        }
+    
     }
 
     return 1;
@@ -555,7 +854,7 @@ HyperLogLogCounter hyperloglog_compress(HyperLogLogCounter hloglog){
     int i, m = (int)pow(2,hloglog->b);
 
     /* make sure the data isn't compressed already */
-    if (hloglog->b < 0) {
+    if (hloglog->b < 0 || hloglog->idx != -1) {
         return hloglog;
     }
 
@@ -612,7 +911,7 @@ HyperLogLogCounter hyperloglog_decompress(HyperLogLogCounter hloglog){
     HyperLogLogCounter htemp;    
 
     /* make sure the data is compressed */
-    if (hloglog->b > 0) {
+    if (hloglog->b > 0 || hloglog->idx !=-1) {
         return hloglog;
     }
 

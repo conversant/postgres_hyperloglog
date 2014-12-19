@@ -63,7 +63,9 @@ typedef struct HyperLogLogCounterData {
 
     /* Used to indicate the version of the struct to allow further modification in hte future */
     uint16_t version;
-    
+   
+    int32_t idx;
+ 
     /* largest observed 'rho' for each of the 'm' buckets (uses the very same trick
      * as in the varlena type in include/c.h where additional memory is palloc'ed and
      * treated as part of the data array ) */
@@ -93,7 +95,7 @@ HyperLogLogCounter hyperloglog_copy(HyperLogLogCounter counter);
 HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCounter counter2, short inplace);
 
 /* add element existence */
-void hyperloglog_add_element(HyperLogLogCounter hloglog, const char * element, int elen);
+HyperLogLogCounter hyperloglog_add_element(HyperLogLogCounter hloglog, const char * element, int elen);
 
 /* get an estimate from the hyperloglog counter */
 double hyperloglog_estimate(HyperLogLogCounter hloglog);
