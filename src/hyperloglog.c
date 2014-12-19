@@ -190,6 +190,7 @@ HyperLogLogCounter hyperloglog_add_hash(HyperLogLogCounter hloglog, uint64_t has
 HyperLogLogCounter hyperloglog_add_hash_sparse(HyperLogLogCounter hloglog, uint64_t hash);
 uint32_t encode_hash(uint64_t hash, HyperLogLogCounter hloglog);
 HyperLogLogCounter sparse_to_dense(HyperLogLogCounter hloglog);
+void dedupe(HyperLogLogCounter hloglog);
 
 int hyperloglog_get_size_sparse(double ndistinct, float error);
 void hyperloglog_reset_internal(HyperLogLogCounter hloglog);
@@ -360,7 +361,7 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
             } else {
                 idx = (idx << result->binbits) >> result->binbits;
                 idx  = idx >> (32 - (result->binbits+ result->b));
-                rho = __builtin_clzll(sparse_data[i] << (result->binbits+ result->b)) + 1;
+                rho = __builtin_clz(sparse_data[i] << (result->binbits+ result->b)) + 1;
             }
             
             /* keep the highest value */
@@ -386,6 +387,7 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
         if (result->idx + counter2->idx > pow(2,(result->b - 4))){
             result = sparse_to_dense(result);
             result = hyperloglog_merge(result,counter2,1);
+            return result;
         } else {
             for (i=0; i < counter2->idx; i++){
                 sparse_data_result[result->idx++] = sparse_data[i];
@@ -393,7 +395,7 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
                 if (result->idx > pow(2,(result->b - 4))) {
                     result = sparse_to_dense(result);
                     result = hyperloglog_merge(result,counter2,1);            
-                    break;
+                    return result;
                 }
             }
         }
@@ -407,60 +409,60 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
 /* Computes size of the structure, depending on the requested error rate and ndistinct. */
 int hyperloglog_get_size(double ndistinct, float error) {
 
-  int b;
-  float m;
-
-  if (error <= 0 || error >= 1)
-      elog(ERROR, "invalid error rate requested");
-
-  m = ERROR_CONST / (error * error);
-  b = (int)ceil(log2(m));
-
-  if (b < MIN_INDEX_BITS)
-      b = MIN_INDEX_BITS;
-  else if (b > MAX_INDEX_BITS)
-      elog(ERROR, "number of index bits exceeds MAX_INDEX_BITS (requested %d)",b);
-
-  /* The size is the sum of the struct overhead and the bytes the used to store
-   * the buckets. Which is the product of the number of buckets and the 
-   * (bits per bucket)/ 8 where 8 is the amount of bits per byte.
-   *  
-   *  size_in_bytes = struct_overhead + num_buckets*(bits_per_bucket/8)
-   *
-   * */  
-  return sizeof(HyperLogLogCounterData) + (int)ceil((pow(2, b) * ceil(log2(log2(ndistinct))) / 8.0));
+    int b;
+    float m;
+    
+    if (error <= 0 || error >= 1)
+        elog(ERROR, "invalid error rate requested");
+    
+    m = ERROR_CONST / (error * error);
+    b = (int)ceil(log2(m));
+    
+    if (b < MIN_INDEX_BITS)
+        b = MIN_INDEX_BITS;
+    else if (b > MAX_INDEX_BITS)
+        elog(ERROR, "number of index bits exceeds MAX_INDEX_BITS (requested %d)",b);
+    
+    /* The size is the sum of the struct overhead and the bytes the used to store
+     * the buckets. Which is the product of the number of buckets and the 
+     * (bits per bucket)/ 8 where 8 is the amount of bits per byte.
+     *  
+     *  size_in_bytes = struct_overhead + num_buckets*(bits_per_bucket/8)
+     *
+     * */  
+    return sizeof(HyperLogLogCounterData) + (int)ceil((pow(2, b) * ceil(log2(log2(ndistinct))) / 8.0));
 
 }
 
 int hyperloglog_get_size_sparse(double ndistinct, float error) {
 
-  int b;
-  float m;
-  if (error <= 0 || error >= 1)
-      elog(ERROR, "invalid error rate requested");
-
-  m = ERROR_CONST / (error * error);
-  b = (int)ceil(log2(m));
-  
-  if (b < MIN_INDEX_BITS)
-      b = MIN_INDEX_BITS;
-  else if (b > MAX_INDEX_BITS)
-      elog(ERROR, "number of index bits exceeds MAX_INDEX_BITS (requested %d)",b);
-
-  /* The size is the sum of the struct overhead and the bytes the used to store
-   * the buckets. Which is the product of the number of buckets and the
-   * (bits per bucket)/ 8 where 8 is the amount of bits per byte.
-   *
-   *  size_in_bytes = struct_overhead + num_buckets*(bits_per_bucket/8)
-   *
-   * */
-  return sizeof(HyperLogLogCounterData) + (int)pow(2,b-2);
+    int b;
+    float m;
+    if (error <= 0 || error >= 1)
+        elog(ERROR, "invalid error rate requested");
+    
+    m = ERROR_CONST / (error * error);
+    b = (int)ceil(log2(m));
+    
+    if (b < MIN_INDEX_BITS)
+        b = MIN_INDEX_BITS;
+    else if (b > MAX_INDEX_BITS)
+        elog(ERROR, "number of index bits exceeds MAX_INDEX_BITS (requested %d)",b);
+    
+    /* The size is the sum of the struct overhead and the bytes the used to store
+     * the buckets. Which is the product of the number of buckets and the
+     * (bits per bucket)/ 8 where 8 is the amount of bits per byte.
+     *
+     *  size_in_bytes = struct_overhead + num_buckets*(bits_per_bucket/8)
+     *
+     * */
+    return sizeof(HyperLogLogCounterData) + (int)pow(2,b-2);
 
 }
 
 
 double hyperloglog_estimate(HyperLogLogCounter hloglog) {
-    double E;
+    double E = 0;
     
     if (hloglog->idx == -1){
         E = hyperloglog_estimate_dense(hloglog);
@@ -500,8 +502,8 @@ double hyperloglog_estimate_dense(HyperLogLogCounter hloglog) {
      * or error estimation */
     if (E <= (5.0 * m)) {
 	
-	/* account for hloglog low cardinality bias */    
-	E = E - error_estimate(E,hloglog->b);
+	    /* account for hloglog low cardinality bias */    
+	    E = E - error_estimate(E,hloglog->b);
 
         /* search for empty registers for linear counting */
         for (j = 0; j < m; j++){
@@ -655,7 +657,11 @@ HyperLogLogCounter hyperloglog_add_hash_sparse(HyperLogLogCounter hloglog, uint6
     bigdata[hloglog->idx++] = encoded_hash;
 
     if (hloglog->idx > pow(2,(hloglog->b - 4))){
-        hloglog = sparse_to_dense(hloglog);
+        dedupe(hloglog);
+        if (hloglog->idx > pow(2,(hloglog->b - 4))*7/8){
+            hloglog = sparse_to_dense(hloglog);
+        }
+        //hloglog = sparse_to_dense(hloglog);
     }
     
     return hloglog;
@@ -708,6 +714,7 @@ HyperLogLogCounter sparse_to_dense(HyperLogLogCounter hloglog){
     htemp = palloc0(sizeof(HyperLogLogCounterData) + (int)ceil((m * hloglog->binbits / 8.0)));
     memcpy(htemp,hloglog,sizeof(HyperLogLogCounterData));
     hloglog = htemp;
+    memset(hloglog->data,0,(int)ceil((m * hloglog->binbits / 8.0)));
 
     for (i=0; i < hloglog->idx; i++){
         idx = sparse_data[i];
@@ -721,7 +728,7 @@ HyperLogLogCounter sparse_to_dense(HyperLogLogCounter hloglog){
         } else {
             idx = (idx << hloglog->binbits) >> hloglog->binbits;
             idx  = idx >> (32 - (hloglog->binbits+ hloglog->b));
-            rho = __builtin_clzll(sparse_data[i] << (hloglog->binbits+ hloglog->b)) + 1;
+            rho = __builtin_clz(sparse_data[i] << (hloglog->binbits+ hloglog->b)) + 1;
         }
         
         /* keep the highest value */
@@ -743,6 +750,26 @@ HyperLogLogCounter sparse_to_dense(HyperLogLogCounter hloglog){
     return hloglog;
 }
 
+void dedupe (HyperLogLogCounter hloglog){
+    int i,j;
+    uint32_t * sparse_data = (uint32_t *) hloglog->data;
+
+    qsort(hloglog->data,hloglog->idx, sizeof(uint32_t),compare_uints);
+
+    j = 0;
+    for (i=0; i < hloglog->idx ; i++){
+        if (i == 0){
+            j++;
+            continue;
+        } else if (sparse_data[i] != sparse_data[j - 1]){
+            sparse_data[j++] = sparse_data[i];
+        }
+    }
+    hloglog->idx = j;
+
+    memset(&sparse_data[j],0,pow(2,hloglog->b-4) - j);
+
+}
 
 /* Just reset the counter (set all the counters to 0). We do this by
  * zeroing the data array */
@@ -767,7 +794,7 @@ int hyperloglog_is_equal(HyperLogLogCounter counter1, HyperLogLogCounter counter
     uint8_t entry1,entry2;
     HyperLogLogCounter counter1copy,counter2copy;
     uint32_t * sparse_data1, *sparse_data2;
-    int i,j, m = (int)ceil(pow(2,counter1->b)); 
+    int i, m = (int)ceil(pow(2,counter1->b)); 
 
     /* check compatibility first */
     if (counter1->b != counter2->b)
@@ -808,31 +835,9 @@ int hyperloglog_is_equal(HyperLogLogCounter counter1, HyperLogLogCounter counter
         sparse_data1 = (uint32_t *) counter1copy->data;
         sparse_data2 = (uint32_t *) counter2copy->data;
 
-        qsort(counter1copy->data,counter1copy->idx, sizeof(uint32_t),compare_uints);
-        qsort(counter2copy->data,counter2copy->idx, sizeof(uint32_t),compare_uints);
-
-        j = 0;
-        for (i=0; i < counter1copy->idx ; i++){
-            if (i == 0){
-                j++;
-                continue;
-            } else if (sparse_data1[i] != sparse_data1[j - 1]){
-                sparse_data1[j++] = sparse_data1[i];
-            }
-        }
-        counter1copy->idx = j;
-
-        j = 0;
-        for (i=0; i < counter2copy->idx ; i++){
-            if (i == 0){
-                j++;
-                continue;
-            } else if (sparse_data2[i] != sparse_data2[j - 1]){
-                sparse_data2[j++] = sparse_data2[i];
-            }
-        }
-        counter2copy->idx = j;
-        
+        dedupe(counter1copy);
+        dedupe(counter2copy);       
+ 
         if (counter1copy->idx != counter2copy->idx){
             return 0;
         }
@@ -851,7 +856,7 @@ int hyperloglog_is_equal(HyperLogLogCounter counter1, HyperLogLogCounter counter
 HyperLogLogCounter hyperloglog_compress(HyperLogLogCounter hloglog){
     PGLZ_Header * dest;
     char entry,*data;    
-    int i, m = (int)pow(2,hloglog->b);
+    int i, m;
 
     /* make sure the data isn't compressed already */
     if (hloglog->b < 0 || hloglog->idx != -1) {
@@ -861,6 +866,7 @@ HyperLogLogCounter hyperloglog_compress(HyperLogLogCounter hloglog){
     /* make sure the dest struct has enough space for an unsuccessful compression
      * and a 4 bytes of overflow since lz might not recognize its over until then
      * preventing segfaults */
+    m = (int)pow(2,hloglog->b);
     dest = malloc(m + sizeof(PGLZ_Header) + 4);
     memset(dest,0,m + sizeof(PGLZ_Header) + 4);
     data = malloc(m);
