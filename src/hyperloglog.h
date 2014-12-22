@@ -24,8 +24,7 @@
  *
  * MIN_INDEX_BITS no real sense in being as innacurate as <4 values would be (>35%)
  *
- * MAX_INDEX_BITS counters start to be many megabytes large and such a value 
- * 	probably indicates an accidental entry
+ * MAX_INDEX_BITS error correction data only goes up to 18
  *
  * HASH_LENGTH the version of MurmurHash we use produces 64 bit hashes 
  *
@@ -45,7 +44,7 @@
  * for low cardinalities. */
 #define ERROR_CONST  1.0816
 #define MIN_INDEX_BITS 4
-#define MAX_INDEX_BITS 25
+#define MAX_INDEX_BITS 18
 #define HASH_LENGTH 64
 #define HASH_SEED 0xadc83b19ULL
 #define MAX_INTERPOLATION_POINTS 200
