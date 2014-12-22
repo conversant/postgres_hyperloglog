@@ -405,13 +405,7 @@ hyperloglog_merge_agg(PG_FUNCTION_ARGS)
         counter1 = PG_GETARG_HLL_P(0);
     	counter2 = PG_GETARG_HLL_P(1);
 
-	    /* decompress if needed */
-        if(counter1->b < 0){
-            counter1 = hyperloglog_decompress(counter1);
-        }
-	    if(counter2->b < 0){
-            counter2 = hyperloglog_decompress(counter2);
-        }
+	    /* decompress is handled inside the merge function since its not always necessary */
 
         /* perform the merge (in place) */
         counter1 = hyperloglog_merge(counter1, counter2, true);
@@ -662,7 +656,7 @@ Datum
 hyperloglog_info(PG_FUNCTION_ARGS)
 {
     HyperLogLogCounter hyperloglog;
-    char out[500], comp[3];
+    char out[500], comp[4], enc[7];
 
     if (PG_ARGISNULL(0) ){
         PG_RETURN_NULL();
@@ -671,12 +665,18 @@ hyperloglog_info(PG_FUNCTION_ARGS)
     hyperloglog =  (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
     
     if (hyperloglog->b < 0){
-        snprintf(comp,3,"yes");
+        snprintf(comp,4,"yes");
     } else {
-        snprintf(comp,3,"no");
+        snprintf(comp,4,"no");
     }
 
-    snprintf(out,500,"Counter Summary:\nstruct version %d\nsize on disk %d\nbits per bin %d\nindex bits %d\nnumber of bins %d\ncompressed? %s",hyperloglog->version,VARSIZE(hyperloglog),hyperloglog->binbits,abs(hyperloglog->b),(int)pow(2,hyperloglog->b),comp);
+    if (hyperloglog->idx == -1){
+        snprintf(enc,7,"dense");
+    } else {
+        snprintf(enc,7,"sparse");
+    }
+
+    snprintf(out,500,"Counter Summary\nstruct version: %d\nsize on disk (bytes): %d\nbits per bin: %d\nindex bits: %d\nnumber of bins: %d\ncompressed?: %s\nencoding: %s\n--------------------------",hyperloglog->version,VARSIZE(hyperloglog),hyperloglog->binbits,abs(hyperloglog->b),(int)pow(2,abs(hyperloglog->b)),comp,enc);
 
     PG_RETURN_TEXT_P(cstring_to_text(out));
 }

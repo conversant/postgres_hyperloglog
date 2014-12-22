@@ -192,6 +192,11 @@ uint32_t encode_hash(uint64_t hash, HyperLogLogCounter hloglog);
 HyperLogLogCounter sparse_to_dense(HyperLogLogCounter hloglog);
 void dedupe(HyperLogLogCounter hloglog);
 
+HyperLogLogCounter hyperloglog_compress_dense(HyperLogLogCounter hloglog);
+HyperLogLogCounter hyperloglog_compress_sparse(HyperLogLogCounter hloglog);
+HyperLogLogCounter hyperloglog_decompress_dense(HyperLogLogCounter hloglog);
+HyperLogLogCounter hyperloglog_decompress_sparse(HyperLogLogCounter hloglog);
+
 int hyperloglog_get_size_sparse(double ndistinct, float error);
 void hyperloglog_reset_internal(HyperLogLogCounter hloglog);
 int compare_uints (const void *a, const void *b);
@@ -326,7 +331,7 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
     uint32_t * sparse_data, * sparse_data_result,idx;
 
     /* check compatibility first */
-    if (counter1->b != counter2->b)
+    if (counter1->b != counter2->b && -1*counter1->b != counter2->b)
         elog(ERROR, "index size of estimators differs (%d != %d)", counter1->b, counter2->b);
     else if (counter1->binbits != counter2->binbits)
         elog(ERROR, "bin size of estimators differs (%d != %d)", counter1->binbits, counter2->binbits);
@@ -339,6 +344,14 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
 
     /* Keep the maximum register value for each bin */
     if (result->idx == -1 && counter2->idx == -1){
+        /* decompress if needed */
+        if (result->b < 0 ){
+            result = hyperloglog_decompress(result);
+        }
+        if (counter2->b < 0){
+            counter2 = hyperloglog_decompress(counter2);
+        }
+
         for (i = 0; i < pow(2, result->b); i++){
             HLL_DENSE_GET_REGISTER(resultcount,result->data,i,result->binbits);
             HLL_DENSE_GET_REGISTER(countercount,counter2->data,i,counter2->binbits);
@@ -347,6 +360,11 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
             }
         }
     } else if (result->idx == -1) {
+        /* decompress dense counter if needed */
+        if (result->b < 0 ){
+            result = hyperloglog_decompress(result);
+        }
+
         sparse_data = (uint32_t *) counter2->data;
         
         for (i=0; i < counter2->idx; i++){
@@ -372,6 +390,14 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
  
          }
     } else if (counter2->idx == -1) {
+        /* decompress if needed */
+        if (result->b < 0 ){
+            result->b = -1*result->b;
+        }
+        if (counter2->b < 0 ){
+            counter2 = hyperloglog_decompress(counter2);
+        }
+
         result = sparse_to_dense(result);
         for (i = 0; i < pow(2, result->b); i++){
             HLL_DENSE_GET_REGISTER(resultcount,result->data,i,result->binbits);
@@ -381,24 +407,27 @@ HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCou
             }
         }
     } else {
+        /* decompress if needed */
+        if (result->b < 0 ){
+            result = hyperloglog_decompress(result);
+        }
+
         sparse_data = (uint32_t *) counter2->data;
         sparse_data_result = (uint32_t *) result->data;
         
-        if (result->idx + counter2->idx > pow(2,(result->b - 4))){
-            result = sparse_to_dense(result);
-            result = hyperloglog_merge(result,counter2,1);
-            return result;
-        } else {
-            for (i=0; i < counter2->idx; i++){
-                sparse_data_result[result->idx++] = sparse_data[i];
-                
-                if (result->idx > pow(2,(result->b - 4))) {
+        for (i=0; i < counter2->idx; i++){
+            sparse_data_result[result->idx++] = sparse_data[i];
+            
+            if (result->idx > pow(2,(result->b - 4))) {
+                dedupe(result);
+                if (result->idx > pow(2,(result->b - 4)) * (7/8)) {
                     result = sparse_to_dense(result);
                     result = hyperloglog_merge(result,counter2,1);            
                     return result;
                 }
             }
         }
+
     }
 
     return result;
@@ -854,14 +883,25 @@ int hyperloglog_is_equal(HyperLogLogCounter counter1, HyperLogLogCounter counter
 }
 
 HyperLogLogCounter hyperloglog_compress(HyperLogLogCounter hloglog){
+    /* make sure the data isn't compressed already */
+    if (hloglog->b < 0) {
+        return hloglog;
+    }
+
+    if (hloglog->idx == -1){
+        hloglog = hyperloglog_compress_dense(hloglog);
+    } else {
+        hloglog = hyperloglog_compress_sparse(hloglog);
+    }
+
+    return hloglog;
+}
+
+
+HyperLogLogCounter hyperloglog_compress_dense(HyperLogLogCounter hloglog){
     PGLZ_Header * dest;
     char entry,*data;    
     int i, m;
-
-    /* make sure the data isn't compressed already */
-    if (hloglog->b < 0 || hloglog->idx != -1) {
-        return hloglog;
-    }
 
     /* make sure the dest struct has enough space for an unsuccessful compression
      * and a 4 bytes of overflow since lz might not recognize its over until then
@@ -911,15 +951,37 @@ HyperLogLogCounter hyperloglog_compress(HyperLogLogCounter hloglog){
     return hloglog;
 }
 
+HyperLogLogCounter hyperloglog_compress_sparse(HyperLogLogCounter hloglog){
+
+    dedupe(hloglog);
+
+    SET_VARSIZE(hloglog,sizeof(HyperLogLogCounterData) + hloglog->idx*4);
+
+    /* invert the b value so it being < 0 can be used as a compression flag */
+    hloglog->b = -1 * (hloglog->b);
+
+    return hloglog;
+}
+
 HyperLogLogCounter hyperloglog_decompress(HyperLogLogCounter hloglog){
+     /* make sure the data is compressed */
+    if (hloglog->b > 0) {
+        return hloglog;
+    }
+
+    if (hloglog->idx == -1){
+        hloglog = hyperloglog_decompress_dense(hloglog);
+    } else {
+        hloglog = hyperloglog_decompress_sparse(hloglog);
+    }
+    
+    return hloglog;
+}
+
+HyperLogLogCounter hyperloglog_decompress_dense(HyperLogLogCounter hloglog){
     char * dest;
     int m,i;
     HyperLogLogCounter htemp;    
-
-    /* make sure the data is compressed */
-    if (hloglog->b > 0 || hloglog->idx !=-1) {
-        return hloglog;
-    }
 
     /* reset b to positive value for calcs and to indicate data is decompressed */
     hloglog->b = -1 * (hloglog->b);
@@ -951,6 +1013,21 @@ HyperLogLogCounter hyperloglog_decompress(HyperLogLogCounter hloglog){
     if (dest){
         free(dest);
     }
+
+    return hloglog;
+}
+
+HyperLogLogCounter hyperloglog_decompress_sparse(HyperLogLogCounter hloglog){
+    HyperLogLogCounter htemp;
+
+    /* reset b to positive value for calcs and to indicate data is decompressed */
+    hloglog->b = -1 * (hloglog->b);
+
+    htemp = palloc0(sizeof(HyperLogLogCounterData) + (int)pow(2,hloglog->b-2));
+    memcpy(htemp,hloglog,VARSIZE(hloglog));
+    hloglog = htemp;
+
+    SET_VARSIZE(hloglog,sizeof(HyperLogLogCounterData) + (int)pow(2,hloglog->b-2));
 
     return hloglog;
 }
