@@ -1074,15 +1074,16 @@ HyperLogLogCounter hyperloglog_decompress_dense(HyperLogLogCounter hloglog){
  * flipping the compression flag */
 HyperLogLogCounter hyperloglog_decompress_sparse(HyperLogLogCounter hloglog){
     HyperLogLogCounter htemp;
+    size_t length = pow(2,hloglog->b-2);
 
     /* reset b to positive value for calcs and to indicate data is decompressed */
     hloglog->b = -1 * (hloglog->b);
 
-    htemp = palloc0((int)pow(2,hloglog->b-2));
+    htemp = palloc0(length);
     memcpy(htemp,hloglog,VARSIZE(hloglog));
     hloglog = htemp;
 
-    SET_VARSIZE(hloglog,(int)pow(2,hloglog->b-2));
+    SET_VARSIZE(hloglog,length);
     return hloglog;
 }
 
