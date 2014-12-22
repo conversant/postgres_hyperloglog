@@ -20,7 +20,7 @@ PG_MODULE_MAGIC;
 
 /* shoot for 2^64 distinct items and 0.8125% error rate by default */
 #define DEFAULT_NDISTINCT   1ULL << 63 
-#define DEFAULT_ERROR       0.009
+#define DEFAULT_ERROR       0.008125
 
 PG_FUNCTION_INFO_V1(hyperloglog_add_item);
 PG_FUNCTION_INFO_V1(hyperloglog_add_item_agg);
@@ -47,6 +47,10 @@ PG_FUNCTION_INFO_V1(hyperloglog_send);
 
 PG_FUNCTION_INFO_V1(hyperloglog_comp);
 PG_FUNCTION_INFO_V1(hyperloglog_decomp);
+PG_FUNCTION_INFO_V1(hyperloglog_update);
+PG_FUNCTION_INFO_V1(hyperloglog_info);
+PG_FUNCTION_INFO_V1(hyperloglog_info_noargs);
+
 
 PG_FUNCTION_INFO_V1(hyperloglog_equal);
 PG_FUNCTION_INFO_V1(hyperloglog_not_equal);
@@ -80,6 +84,9 @@ Datum hyperloglog_send(PG_FUNCTION_ARGS);
 
 Datum hyperloglog_comp(PG_FUNCTION_ARGS);
 Datum hyperloglog_decomp(PG_FUNCTION_ARGS);
+Datum hyperloglog_update(PG_FUNCTION_ARGS);
+Datum hyperloglog_info(PG_FUNCTION_ARGS);
+Datum hyperloglog_info_noargs(PG_FUNCTION_ARGS);
 
 Datum hyperloglog_equal(PG_FUNCTION_ARGS);
 Datum hyperloglog_not_equal(PG_FUNCTION_ARGS);
@@ -630,6 +637,61 @@ hyperloglog_decomp(PG_FUNCTION_ARGS)
 }
 
 
+Datum
+hyperloglog_update(PG_FUNCTION_ARGS)
+{
+    HyperLogLogCounter hyperloglog;
+
+    if (PG_ARGISNULL(0) ){
+        PG_RETURN_NULL();
+    }
+
+    hyperloglog = (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+
+    if (hyperloglog->b < 0){
+        hyperloglog = hyperloglog_decompress(hyperloglog);
+    }
+    
+    hyperloglog = hyperloglog_upgrade(hyperloglog);
+
+    PG_RETURN_BYTEA_P(hyperloglog);
+}
+
+
+Datum
+hyperloglog_info(PG_FUNCTION_ARGS)
+{
+    HyperLogLogCounter hyperloglog;
+    char out[500], comp[3];
+
+    if (PG_ARGISNULL(0) ){
+        PG_RETURN_NULL();
+    }
+
+    hyperloglog =  (HyperLogLogCounter)PG_GETARG_BYTEA_P(0);
+    
+    if (hyperloglog->b < 0){
+        snprintf(comp,3,"yes");
+    } else {
+        snprintf(comp,3,"no");
+    }
+
+    snprintf(out,500,"Counter Summary:\nstruct version %d\nsize on disk %d\nbits per bin %d\nindex bits %d\nnumber of bins %d\ncompressed? %s",hyperloglog->version,VARSIZE(hyperloglog),hyperloglog->binbits,abs(hyperloglog->b),(int)pow(2,hyperloglog->b),comp);
+
+    PG_RETURN_TEXT_P(cstring_to_text(out));
+}
+
+Datum
+hyperloglog_info_noargs(PG_FUNCTION_ARGS)
+{
+    char out[500];
+
+    snprintf(out,500,"Current struct version %d\nDefault error rate %f\nDefault ndistinct %llu",STRUCT_VERSION,DEFAULT_ERROR,DEFAULT_NDISTINCT);
+
+    PG_RETURN_TEXT_P(cstring_to_text(out));
+}
+
+    
 /* set operations */
 Datum
 hyperloglog_equal(PG_FUNCTION_ARGS)

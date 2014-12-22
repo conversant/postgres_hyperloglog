@@ -35,7 +35,14 @@
  *
  * PRECISION_5_MAX_INTERPOLATION_POINTS precision 5 only has 159 points
  *
- * PRECISION_4_MAX_INTERPOLATION_POINTS precision 4 only has 79 points */
+ * PRECISION_4_MAX_INTERPOLATION_POINTS precision 4 only has 79 points 
+ * 
+ * STRUCT_VERSION
+ * 0 - Basic implementation + compression and H++'s improved error correction at
+ * low cardinalities
+ *
+ * 1 - Sparse encoding added for low cardinialities. Improves accuracy and storage
+ * for low cardinalities. */
 #define ERROR_CONST  1.0816
 #define MIN_INDEX_BITS 4
 #define MAX_INDEX_BITS 25
@@ -44,12 +51,12 @@
 #define MAX_INTERPOLATION_POINTS 200
 #define PRECISION_5_MAX_INTERPOLATION_POINTS 159
 #define PRECISION_4_MAX_INTERPOLATION_POINTS 79
-#define STRUCT_VERSION 0
+#define STRUCT_VERSION 1
 
 /* type defininitions */
 typedef struct HyperLogLogCounterData {
     
-    /* length of the structure (varlena) */
+    /* length of the structure (varlena) used heavily by postgres internally */
     char vl_len_[4];
     
     /* Number bits used to index the buckets - this is determined depending
@@ -64,6 +71,8 @@ typedef struct HyperLogLogCounterData {
     /* Used to indicate the version of the struct to allow further modification in hte future */
     uint16_t version;
    
+    /* The current index of the sparse encoded data array. Also when -1 used as a flag for dense
+     * encoded counters */
     int32_t idx;
  
     /* largest observed 'rho' for each of the 'm' buckets (uses the very same trick
@@ -106,5 +115,8 @@ void hyperloglog_reset_internal(HyperLogLogCounter hloglog);
 /* data compression/decompression */
 HyperLogLogCounter hyperloglog_compress(HyperLogLogCounter hloglog);
 HyperLogLogCounter hyperloglog_decompress(HyperLogLogCounter hloglog);
+
+/* Upgrades old struct versions to the new version */
+HyperLogLogCounter hyperloglog_upgrade(HyperLogLogCounter hloglog);
 
 #endif // #ifndef _HYPERLOGLOG_H_

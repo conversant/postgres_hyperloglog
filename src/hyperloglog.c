@@ -955,3 +955,23 @@ HyperLogLogCounter hyperloglog_decompress(HyperLogLogCounter hloglog){
     return hloglog;
 }
 
+HyperLogLogCounter hyperloglog_upgrade(HyperLogLogCounter hloglog){
+    int m;
+    HyperLogLogCounter htemp = 0;
+    if (hloglog->version == 0){
+        m = pow(2,hloglog->b);
+        htemp = palloc0(sizeof(HyperLogLogCounterData) + (int)ceil((m * hloglog->binbits / 8)));
+        memcpy(htemp->data,hloglog->data,(m * hloglog->binbits / 8));
+        htemp->b = hloglog->b;
+        htemp->binbits = hloglog->binbits;
+        htemp->version = STRUCT_VERSION;
+        htemp->idx = -1;
+        SET_VARSIZE(htemp, (sizeof(HyperLogLogCounterData) +(m * hloglog->binbits / 8)));
+    } else if (hloglog->version == STRUCT_VERSION) {
+        htemp = hloglog; 
+    } else {
+        elog(ERROR,"The version of the orginal struct %d is not supported by upgrade!",hloglog->version);
+    }
+
+    return htemp;
+}
