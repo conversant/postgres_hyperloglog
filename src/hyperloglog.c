@@ -48,6 +48,23 @@ static float alpham[17] = {0, 0, 0, 0, 172.288 , 713.728, 2904.064,11718.9917616
 /* linear counting thresholds */
 static int threshold[19] = {0,0,0,0,10,20,40,80,220,400,900,1800,3100,6500,11500,20000,50000,120000,350000};
 
+/* mask */
+uint32_t MASK[15][5] = {{0x7FFFFF,0x3FFFFF,0x1FFFFF,0xFFFFF,0x7FFFF},
+                        {0x3FFFFF,0x1FFFFF,0xFFFFF,0x7FFFF,0x3FFFF},
+                        {0x1FFFFF,0xFFFFF,0x7FFFF,0x3FFFF,0x1FFFF},
+                        {0xFFFFF,0x7FFFF,0x3FFFF,0x1FFFF,0xFFFF},
+                        {0x7FFFF,0x3FFFF,0x1FFFF,0xFFFF,0x7FFF},
+                        {0x3FFFF,0x1FFFF,0xFFFF,0x7FFF,0x3FFF},
+                        {0x1FFFF,0xFFFF,0x7FFF,0x3FFF,0x1FFF},
+                        {0xFFFF,0x7FFF,0x3FFF,0x1FFF,0xFFF},
+                        {0x7FFF,0x3FFF,0x1FFF,0xFFF,0x7FF},
+                        {0x3FFF,0x1FFF,0xFFF,0x7FF,0x3FF},
+                        {0x1FFF,0xFFF,0x7FF,0x3FF,0x1FF},
+                        {0xFFF,0x7FF,0x3FF,0x1FF,0xFF},
+                        {0x7FF,0x3FF,0x1FF,0xFF,0x7F},
+                        {0x3FF,0x1FF,0xFF,0x7F,0x3F},
+                        {0x1FF,0xFF,0x7F,0x3F,0x1F}};
+
 /* error correction data (x-values) */
 double rawEstimateData[15][201] = {
   // precision 4
@@ -747,7 +764,7 @@ uint32_t encode_hash(uint64_t hash, HyperLogLogCounter hloglog){
     idx  = hash >> (HASH_LENGTH - (32 - 1 - hloglog->binbits));
 
     /* check p-p' bits for significant digit */
-    if (idx & (int)(pow(2,(32 - 1 - hloglog->b - hloglog->binbits)) -1) ){
+    if (idx & MASK[hloglog->b - 4][hloglog->binbits - 4]){
         encode = idx << 1;
     } else {
         encode = idx << hloglog->binbits;
@@ -1074,10 +1091,12 @@ HyperLogLogCounter hyperloglog_decompress_dense(HyperLogLogCounter hloglog){
  * flipping the compression flag */
 HyperLogLogCounter hyperloglog_decompress_sparse(HyperLogLogCounter hloglog){
     HyperLogLogCounter htemp;
-    size_t length = pow(2,hloglog->b-2);
+    size_t length;
 
     /* reset b to positive value for calcs and to indicate data is decompressed */
     hloglog->b = -1 * (hloglog->b);
+
+    length = pow(2,(hloglog->b-2));
 
     htemp = palloc0(length);
     memcpy(htemp,hloglog,VARSIZE(hloglog));
