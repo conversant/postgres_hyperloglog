@@ -50,7 +50,31 @@
 #define MAX_INTERPOLATION_POINTS 200
 #define PRECISION_5_MAX_INTERPOLATION_POINTS 159
 #define PRECISION_4_MAX_INTERPOLATION_POINTS 79
-#define STRUCT_VERSION 1
+#define STRUCT_VERSION 2
+
+#define HLL_DENSE_GET_REGISTER(target,p,regnum,hll_bits) do { \
+    uint8_t *_p = (uint8_t*) p; \
+    unsigned long _byte = regnum*hll_bits/8; \
+    unsigned long _fb = regnum*hll_bits&7; \
+    unsigned long _fb8 = 8 - _fb; \
+    unsigned long b0 = _p[_byte]; \
+    unsigned long b1 = _p[_byte+1]; \
+    target = ((b0 >> _fb) | (b1 << _fb8)) & ((1<<hll_bits)-1); \
+} while(0)
+
+/* Set the value of the register at position 'regnum' to 'val'.
+ * 'p' is an array of unsigned bytes. */
+#define HLL_DENSE_SET_REGISTER(p,regnum,val,hll_bits) do { \
+    uint8_t *_p = (uint8_t*) p; \
+    unsigned long _byte = regnum*hll_bits/8; \
+    unsigned long _fb = regnum*hll_bits&7; \
+    unsigned long _fb8 = 8 - _fb; \
+    unsigned long _v = val; \
+    _p[_byte] &= ~(((1<<hll_bits)-1) << _fb); \
+    _p[_byte] |= _v << _fb; \
+    _p[_byte+1] &= ~(((1<<hll_bits)-1) >> _fb8); \
+    _p[_byte+1] |= _v >> _fb8; \
+} while(0)
 
 /* type defininitions */
 typedef struct HyperLogLogCounterData {

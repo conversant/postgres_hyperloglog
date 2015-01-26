@@ -1,0 +1,224 @@
+BEGIN
+SET
+ counter_size 
+--------------
+ t
+(1 row)
+
+SELECT 1
+ v_counter_length 
+------------------
+ t
+(1 row)
+
+ v_counter2_length 
+-------------------
+ t
+(1 row)
+
+ v_counter3_length 
+-------------------
+ t
+(1 row)
+
+ v_counter_estimate 
+--------------------
+ t
+(1 row)
+
+ v_counter2_estimate 
+---------------------
+ t
+(1 row)
+
+ v_counter3_estimate 
+---------------------
+ t
+(1 row)
+
+ distinct_estimate_int_sparse 
+------------------------------
+ t
+(1 row)
+
+ distinct_estimate_text_sparse 
+-------------------------------
+ t
+(1 row)
+
+ distinct_estimate_int_dense 
+-----------------------------
+ t
+(1 row)
+
+ distinct_estimate_text_dense 
+------------------------------
+ t
+(1 row)
+
+ sum 
+-----
+ t
+(1 row)
+
+ merge_sparse 
+--------------
+ t
+(1 row)
+
+ merge_dense 
+-------------
+ t
+(1 row)
+
+ merge_mixed1 
+--------------
+ t
+(1 row)
+
+ merge_mixed2 
+--------------
+ t
+(1 row)
+
+ sparse_equality 
+-----------------
+ t
+(1 row)
+
+ sparse_equality2 
+------------------
+ t
+(1 row)
+
+ dense_equality 
+----------------
+ t
+(1 row)
+
+ sparse_inequality 
+-------------------
+ t
+(1 row)
+
+ sparse_inequality2 
+--------------------
+ t
+(1 row)
+
+ dense_inequality 
+------------------
+ t
+(1 row)
+
+ no_intersection_sparse 
+------------------------
+ t
+(1 row)
+
+ no_intersection_dense 
+-----------------------
+ t
+(1 row)
+
+ intersection_sparse 
+---------------------
+ t
+(1 row)
+
+ intersection_dense 
+--------------------
+ t
+(1 row)
+
+ intersection_mixed 
+--------------------
+ t
+(1 row)
+
+ union_sparse 
+--------------
+ t
+(1 row)
+
+ union_dense 
+-------------
+ t
+(1 row)
+
+ union_mixed1 
+--------------
+ t
+(1 row)
+
+ union_mixed2 
+--------------
+ t
+(1 row)
+
+ compliment 
+------------
+ t
+(1 row)
+
+ compliment 
+------------
+ t
+(1 row)
+
+ symmetric_diff 
+----------------
+ t
+(1 row)
+
+ hashtag_operator 
+------------------
+ t
+(1 row)
+
+ concat_operator 
+-----------------
+ t
+(1 row)
+
+ equal_operator 
+----------------
+ t
+(1 row)
+
+ notequal_operator 
+-------------------
+ t
+(1 row)
+
+ greater_than_operator 
+-----------------------
+ t
+(1 row)
+
+ less_than_operator 
+--------------------
+ t
+(1 row)
+
+ greater_than_equal_operator_equal 
+-----------------------------------
+ t
+(1 row)
+
+ greater_than_equal_operator_greater 
+-------------------------------------
+ t
+(1 row)
+
+ less_than_operator_equal 
+--------------------------
+ t
+(1 row)
+
+ less_than_equal_operator_less 
+-------------------------------
+ t
+(1 row)
+
+ROLLBACK
