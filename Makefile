@@ -1,5 +1,5 @@
 MODULE_big = hyperloglog_counter
-OBJS = src/hyperloglog_counter.o src/hyperloglog.o src/legacy.o
+OBJS = src/hyperloglog_counter.o src/hyperloglog.o src/upgrade.o src/hllutils.o
 
 EXTENSION = hyperloglog_counter
 DATA = sql/hyperloglog_counter--1.1.0--1.2.0.sql  sql/hyperloglog_counter--1.2.0--1.2.3.sql  sql/hyperloglog_counter--1.2.3.sql

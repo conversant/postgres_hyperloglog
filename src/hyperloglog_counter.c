@@ -1,3 +1,4 @@
+/* File contains functions that interact directly with the postgres api */
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
@@ -5,17 +6,20 @@
 
 #include "postgres.h"
 #include "fmgr.h"
-#include "hyperloglog.h"
 #include "utils/builtins.h"
 #include "utils/bytea.h"
 #include "utils/lsyscache.h"
 #include "lib/stringinfo.h"
 #include "libpq/pqformat.h"
 
+#include "hyperloglog.h"
+#include "upgrade.h"
+
 #ifdef PG_MODULE_MAGIC
 PG_MODULE_MAGIC;
 #endif
 
+/* PG_GETARG macros for HyperLogLogCounter's that does version checking */
 #define PG_GETARG_HLL_P(n) pg_check_hll_version((HyperLogLogCounter) PG_GETARG_BYTEA_P(n))
 #define PG_GETARG_HLL_P_COPY(n) pg_check_hll_version((HyperLogLogCounter) PG_GETARG_BYTEA_P_COPY(n))
 
@@ -23,6 +27,7 @@ PG_MODULE_MAGIC;
 #define DEFAULT_NDISTINCT   1ULL << 63 
 #define DEFAULT_ERROR       0.008125
 
+/* Use the PG_FUNCTION_INFO_V! macro to pass functions to postgres */
 PG_FUNCTION_INFO_V1(hyperloglog_add_item);
 PG_FUNCTION_INFO_V1(hyperloglog_add_item_agg);
 PG_FUNCTION_INFO_V1(hyperloglog_add_item_agg_error);
@@ -60,6 +65,7 @@ PG_FUNCTION_INFO_V1(hyperloglog_intersection);
 PG_FUNCTION_INFO_V1(hyperloglog_compliment);
 PG_FUNCTION_INFO_V1(hyperloglog_symmetric_diff);
 
+/* function declarations */
 Datum hyperloglog_add_item(PG_FUNCTION_ARGS);
 Datum hyperloglog_add_item_agg(PG_FUNCTION_ARGS);
 Datum hyperloglog_add_item_agg_error(PG_FUNCTION_ARGS);
@@ -96,9 +102,12 @@ Datum hyperloglog_intersection(PG_FUNCTION_ARGS);
 Datum hyperloglog_compliment(PG_FUNCTION_ARGS);
 Datum hyperloglog_symmetric_diff(PG_FUNCTION_ARGS);
 
-HyperLogLogCounter pg_check_hll_version(HyperLogLogCounter hloglog);
+static HyperLogLogCounter pg_check_hll_version(HyperLogLogCounter hloglog);
 
-HyperLogLogCounter pg_check_hll_version(HyperLogLogCounter hloglog){
+/* function definitions */
+static HyperLogLogCounter 
+pg_check_hll_version(HyperLogLogCounter hloglog)
+{
     if (hloglog->version != STRUCT_VERSION){
         elog(ERROR,"ERROR: The stored counter is version %u while the library is version %u. Please change library version or use upgrade function to upgrade the counter",hloglog->version,STRUCT_VERSION);
     }

@@ -1252,14 +1252,32 @@ group_decode_sorted(const uint8_t * input, int32_t length, uint32_t * output)
 
 /** ZigZag encodes for converting signed values into unsigned
  */
-inline uint32_t zigZag_encode32(int32_t  n) { return (n << 1) ^ (n >> 31);         }
-inline uint64_t zigZag_encode64(int64_t  n) { return (n << 1) ^ (n >> 63);         }
+inline uint32_t 
+zigZag_encode32(int32_t  n) 
+{ 
+    return (n << 1) ^ (n >> 31);
+}
+
+inline uint64_t 
+zigZag_encode64(int64_t  n) 
+{ 
+    return (n << 1) ^ (n >> 63);
+}
 
 /**
  * ZigZag decodes for converting unsigned values into signed
  */
-inline int32_t  zigZag_decode32(uint32_t n) { return (n >> 1) ^ -(int32_t)(n & 1); }
-inline int64_t  zigZag_decode64(uint64_t n) { return (n >> 1) ^ -(int64_t)(n & 1); }
+inline int32_t  
+zigZag_decode32(uint32_t n) 
+{ 
+    return (n >> 1) ^ -(int32_t)(n & 1);
+}
+
+inline int64_t  
+zigZag_decode64(uint64_t n) 
+{ 
+    return (n >> 1) ^ -(int64_t)(n & 1);
+}
 
 
 #endif /* VARINT_H_ */

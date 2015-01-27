@@ -139,7 +139,4 @@ void hyperloglog_reset_internal(HyperLogLogCounter hloglog);
 HyperLogLogCounter hyperloglog_compress(HyperLogLogCounter hloglog);
 HyperLogLogCounter hyperloglog_decompress(HyperLogLogCounter hloglog);
 
-/* Upgrades old struct versions to the new version */
-HyperLogLogCounter hyperloglog_upgrade(HyperLogLogCounter hloglog);
-
 #endif // #ifndef _HYPERLOGLOG_H_
