@@ -3,7 +3,6 @@
 #include <assert.h>
 #include <math.h>
 #include <string.h>
-#include <time.h>
 
 #include "postgres.h"
 #include "utils/pg_lzcompress.h"
