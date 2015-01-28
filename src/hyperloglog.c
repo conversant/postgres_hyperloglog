@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <math.h>
 #include <string.h>
+#include <time.h>
 
 #include "postgres.h"
 #include "utils/pg_lzcompress.h"
@@ -79,17 +80,19 @@ hyperloglog_create(double ndistinct, float error)
     /* set the counter struct version */
     p->version = STRUCT_VERSION;
 
-    /* what is the minimum number of bins to achieve the requested error rate? we'll
-     * increase this to the nearest power of two later */
+    /* what is the minimum number of bins to achieve the requested error rate?
+     *  we'll increase this to the nearest power of two later */
     m = ERROR_CONST / (error * error);
 
-    /* so how many bits do we need to index the bins (round up to nearest power of two) */
+    /* so how many bits do we need to index the bins (round up to nearest power
+    *  of two) */
     p->b = (uint8_t)ceil(log2(m));
 
     /* set the number of bits per bin */
     p->binbits = (uint8_t)ceil(log2(log2(ndistinct)));
 
-    /* set the starting sparse index to 0 since all counters start sparse and empty */
+    /* set the starting sparse index to 0 since all counters start sparse and
+     *  empty */
     p->idx = 0;
 
     if (p->b < MIN_INDEX_BITS)   /* we want at least 2^4 (=16) bins */
@@ -157,15 +160,16 @@ hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCounter counter2, shor
     } else if (result->idx == -1) {
         sparse_data = (uint32_t *) counter2->data;
         
-        /* First the encoded hash must be converted to idx and rho before it can
-         * be added to the densely encoded result counter */
+        /* First the encoded hash must be converted to idx and rho before it 
+         * can be added to the densely encoded result counter */
         for (i=0; i < counter2->idx; i++){
             idx = sparse_data[i];
             
             /* if last bit is 1 then rho is the preceding ~6 bits
              * otherwise rho can be calculated from the leading bits*/
             if (sparse_data[i] & 1) {
-                /* grab the binbits before the indicator bit and add that to the number of zero bits in p-p' */
+                /* grab the binbits before the indicator bit and add that to
+                 *  the number of zero bits in p-p' */
                 idx = idx >> (32 - result->b);
                 rho = ((sparse_data[i] & (int)(pow(2,result->binbits+1) - 2)) >> 1) + (32 - 1 - result->b - result->binbits);
             } else {
@@ -182,10 +186,11 @@ hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCounter counter2, shor
  
          }
     } else if (counter2->idx == -1) {
-        /* Toggle the compression flag for result if it is compressed since sparse_to_dense
-         * doesn't require the counter to be resized coming in but it does copy this value
-         * which would then cause the counter to falsely read as compressed afterwards. This 
-         * saves an unnecessary memory allocation in the decompress stage. */
+        /* Toggle the compression flag for result if it is compressed since 
+         * sparse_to_dense doesn't require the counter to be resized coming 
+         * in but it does copy this value which would then cause the counter 
+         * to falsely read as compressed afterwards. This saves an unnecessary
+         *  memory allocation in the decompress stage. */
 
         result = sparse_to_dense(result);
         for (i = 0; i < pow(2, result->b); i++){
@@ -201,8 +206,8 @@ hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCounter counter2, shor
         sparse_data = (uint32_t *) counter2->data;
         sparse_data_result = (uint32_t *) result->data;
         
-        /* Add encoded hashes just like in add_hash_sparse with the same dedupe before
-         * promotion logic. */
+        /* Add encoded hashes just like in add_hash_sparse with the same dedupe
+         *  before promotion logic. */
         for (i=0; i < counter2->idx; i++){
             sparse_data_result[result->idx++] = sparse_data[i];
             
@@ -223,7 +228,8 @@ hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCounter counter2, shor
 }
 
 
-/* Computes size of the structure, depending on the requested error rate and ndistinct. */
+/* Computes size of the structure, depending on the requested error rate and
+ * ndistinct. */
 int 
 hyperloglog_get_size(double ndistinct, float error) 
 {
@@ -242,9 +248,9 @@ hyperloglog_get_size(double ndistinct, float error)
     else if (b > MAX_INDEX_BITS)
         elog(ERROR, "number of index bits exceeds MAX_INDEX_BITS (requested %d)",b);
     
-    /* The size is the sum of the struct overhead and the bytes the used to store
-     * the buckets. Which is the product of the number of buckets and the 
-     * (bits per bucket)/ 8 where 8 is the amount of bits per byte.
+    /* The size is the sum of the struct overhead and the bytes the used to 
+     * store the buckets. Which is the product of the number of buckets and
+     *  the (bits per bucket)/ 8 where 8 is the amount of bits per byte.
      *  
      *  size_in_bytes = struct_overhead + num_buckets*(bits_per_bucket/8)
      *
@@ -253,11 +259,12 @@ hyperloglog_get_size(double ndistinct, float error)
 
 }
 
-/* Returns the number of bytes to allocate for the initial sparse encoded counter.
- * Since palloc allocates blocks that are 2^x bytes big if we were to naively chose
- * our sparse size to be a power of 2 and then add in the approriate struct overhead
- * we would have a significant amount of wasted space. So its best to allocate a power
- * of 2 and take the struct overhead out of the maximum number of sparse encoded hashes. */
+/* Returns the number of bytes to allocate for the initial sparse encoded 
+ * counter. Since palloc allocates blocks that are 2^x bytes big if we were
+ * to naively chose our sparse size to be a power of 2 and then add in the 
+ * approriate struct overhead we would have a significant amount of wasted 
+ * space. So its best to allocate a power of 2 and take the struct overhead 
+ * out of the maximum number of sparse encoded hashes. */
 static int 
 hyperloglog_get_size_sparse(double ndistinct, float error) 
 {
@@ -320,8 +327,8 @@ hyperloglog_estimate_dense(HyperLogLogCounter hloglog)
     /* multiple by constants to turn the mean into an estimate */
     E = alpham[hloglog->b] / H;
 
-    /* correct for hyperloglog's low cardinality bias by either using linear counting
-     * or error estimation */
+    /* correct for hyperloglog's low cardinality bias by either using linear
+     *  counting or error estimation */
     if (E <= (5.0 * m)) {
 	
 	    /* account for hloglog low cardinality bias */    
@@ -335,16 +342,17 @@ hyperloglog_estimate_dense(HyperLogLogCounter hloglog)
             }
         }
 
-        /* Don't use linear counting if there are no empty registers since we don't
-	     * to divide by 0 */
+        /* Don't use linear counting if there are no empty registers since we 
+         * don't to divide by 0 */
         if (V != 0){
             H = m * log(m / (float)V);
         } else {
             H = E;
         }
 
-        /* if the estimated cardinality is below the threshold for a specific accuracy
-         * return the linear counting result otherwise use the error corrected version */
+        /* if the estimated cardinality is below the threshold for a specific 
+         * accuracy return the linear counting result otherwise use the error
+         * corrected version */
         if (H <= threshold[hloglog->b]) {
             E = H;
         }
@@ -372,7 +380,8 @@ error_estimate(double E,int b)
         max = PRECISION_4_MAX_INTERPOLATION_POINTS;
     }
 
-    /* find the index of the first interpolation point greater than the uncorrected estimate */
+    /* find the index of the first interpolation point greater than the 
+     * uncorrected estimate */
     for (i = 0; i < max; i++){
         if (E < rawEstimateData[b-4][i]){
             idx = i;
@@ -380,8 +389,8 @@ error_estimate(double E,int b)
         }
     }
 
-    /* take an average of the 6 nearest points working around cases where idx + 3 > max
-     * or idx -2 < 0  */
+    /* take an average of the 6 nearest points working around cases where 
+     * idx + 3 > max or idx -2 < 0  */
     if (idx == -1){
         avg = (double)(biasData[b-4][max - 1] + biasData[b-4][max - 2] + biasData[b-4][max -3] + biasData[b-4][max - 4] + biasData[b-4][max - 5] + biasData[b-4][max - 6]) / 6;
     } else if ( idx > 3 && idx < (max - 4)){
@@ -415,10 +424,10 @@ hyperloglog_estimate_sparse(HyperLogLogCounter hloglog)
         }
     }
 
-    /* Instead of counting empty counters like we do in dense estimation with linear
-     * counting we need to count the number of unique values and subtract that from
-     * the total possible unique counters since we are using a sparse representation
-     * of this space. */
+    /* Instead of counting empty counters like we do in dense estimation with 
+     * linear counting we need to count the number of unique values and 
+     * subtract that from the total possible unique counters since we are using
+     * a sparse representation of this space. */
     return  m * log(m / (double)(m-V));
 
 }
@@ -463,14 +472,16 @@ hyperloglog_add_hash_dense(HyperLogLogCounter hloglog, uint64_t hash)
      * rehash the original hash and take the rho of the new hash and add it
      * to the (64 - hloglog->b) bits. We can repeat this for rho up to 255.
      * We can't go any higher since integer values >255 take more than 1 byte
-     * which is currently supported nor really necessary due to 2^(2^8) ~ 1.16E77 
-     * a number so large its not feasible to have that many unique elements. */
+     * which is currently supported nor really necessary due to 2^(2^8) ~ 
+     * 1.16E77 a number so large its not feasible to have that many unique 
+     * elements. */
     if (rho == HASH_LENGTH){
 	    addn = HASH_LENGTH;
 	    rho = (HASH_LENGTH - hloglog->b);
 	    while (addn == HASH_LENGTH && rho < pow(2,hloglog->binbits)){
 		    hash = MurmurHash64A((const char * )&hash, HASH_LENGTH/8, HASH_SEED);
-		    addn = __builtin_clzll(hash) + 1; // zero length runs should be 1 so counter gets set
+            /* zero length runs should be 1 so counter gets set */
+		    addn = __builtin_clzll(hash) + 1;
 		    rho += addn;
 	    }
     }
@@ -485,8 +496,8 @@ hyperloglog_add_hash_dense(HyperLogLogCounter hloglog, uint64_t hash)
 
 }
 
-/* Add the encoded hash to the array of sparse values and promote to dense encoding
- * if size threshold is exceeded */
+/* Add the encoded hash to the array of sparse values and promote to dense 
+ * encoding if size threshold is exceeded */
 static HyperLogLogCounter 
 hyperloglog_add_hash_sparse(HyperLogLogCounter hloglog, uint64_t hash) 
 {
@@ -498,11 +509,11 @@ hyperloglog_add_hash_sparse(HyperLogLogCounter hloglog, uint64_t hash)
 
     bigdata[hloglog->idx++] = encoded_hash;
 
-    /* If the size threshold is exceeded first we dedupe the array to guard against
-     * situations where many duplicate elements are input into the counter which would
-     * needlessly promote it to dense encoding sacrificing accuracy at a lower cardinality
-     * than desired. However if the dedupe doesn't provide a reasonable reduction its should
-     * still be promoted. */
+    /* If the size threshold is exceeded first we dedupe the array to guard 
+     * against situations where many duplicate elements are input into the 
+     * counter which would needlessly promote it to dense encoding sacrificing
+     * accuracy at a lower cardinality than desired. However if the dedupe 
+     * doesn't provide a reasonable reduction its should still be promoted. */
     if (hloglog->idx > size_sparse_array(hloglog->b)){
         hloglog->idx = dedupe((uint32_t *)hloglog->data,hloglog->idx);
         if (hloglog->idx > size_sparse_array(hloglog->b)*7/8){
@@ -513,15 +524,17 @@ hyperloglog_add_hash_sparse(HyperLogLogCounter hloglog, uint64_t hash)
     return hloglog;
 }
 
-/* Encode the 64 bit hash to a 32 bit summary for sparse encoding and later conversion
- * to dense encoding. The encoding scheme is as follows:
+/* Encode the 64 bit hash to a 32 bit summary for sparse encoding and later
+ *  conversion to dense encoding. The encoding scheme is as follows:
  * 
- * We take an index of 25 bits (as opposed to the default 14) to allow for greater accuracy
- * when sparsely encoded. If the bits 14 - 25 contain a 1 (so rho is less than 11) then we 
- * add a 0 to the of the encode as a flag for this. However if these bits are all 0's then
- * we need to add rho to the end of this so we can sucesfully switch to dense encoding when
- * the time comes. We indicate this scenario with a trailing 1 bit. It is worth noting we
- * actually add rho - 11 since we can infer that extra 11 from the fact that bits 14-25 are 0.
+ * We take an index of 25 bits (as opposed to the default 14) to allow for
+ * greater accuracy when sparsely encoded. If the bits 14 - 25 contain a 1 
+ * (so rho is less than 11) then we add a 0 to the of the encode as a flag 
+ * for this. However if these bits are all 0's then we need to add rho to the
+ * end of this so we can sucesfully switch to dense encoding when the time 
+ * comes. We indicate this scenario with a trailing 1 bit. It is worth noting we
+ * actually add rho - 11 since we can infer that extra 11 from the fact that 
+ * bits 14-25 are 0.
  *
  * Scenario 1 (where rho is in bits 14-25):
  * six 0 bits | first 25 bits of hash | 0 = 32 bit encoded number
@@ -550,7 +563,8 @@ encode_hash(uint64_t hash, HyperLogLogCounter hloglog)
             rho = (HASH_LENGTH - (32- 1 - hloglog->binbits));
             while (addn == HASH_LENGTH && rho < pow(2,hloglog->binbits)){
                 hash = MurmurHash64A((const char * )&hash, HASH_LENGTH/8, HASH_SEED);
-                addn = __builtin_clzll(hash) + 1; // zero length runs should be 1 so counter gets set
+                /*zero length runs should be 1 so counter gets set */
+                addn = __builtin_clzll(hash) + 1;
                 rho += addn;
             }
         }
@@ -576,7 +590,8 @@ sparse_to_dense(HyperLogLogCounter hloglog)
         return hloglog;
     }
 
-    /* Sparse encoded counters are smaller than dense so new space needs to be alloced */
+    /* Sparse encoded counters are smaller than dense so new space needs to be
+     *  alloced */
     sparse_data = malloc(hloglog->idx*sizeof(uint32_t));
     memmove(sparse_data,&hloglog->data,hloglog->idx*sizeof(uint32_t));
     htemp = palloc0(sizeof(HyperLogLogCounterData) + (int)ceil((m * hloglog->binbits / 8.0)));
@@ -590,7 +605,8 @@ sparse_to_dense(HyperLogLogCounter hloglog)
         /* if last bit is 1 then rho is the preceding ~6 bits
          * otherwise rho can be calculated from the leading bits*/
         if (sparse_data[i] & 1) {
-            /* grab the binbits before the indicator bit and add that to the number of zero bits in p-p' */
+            /* grab the binbits before the indicator bit and add that to the 
+             * number of zero bits in p-p' */
             idx = idx >> (32 - hloglog->b);
             rho = ((sparse_data[i] & (int)(pow(2,hloglog->binbits+1) - 2)) >> 1) + (32 - 1 - hloglog->b - hloglog->binbits);
         } else {
@@ -721,9 +737,9 @@ hyperloglog_compress_dense(HyperLogLogCounter hloglog)
     char entry,*data;    
     int i, m;
 
-    /* make sure the dest struct has enough space for an unsuccessful compression
-     * and a 4 bytes of overflow since lz might not recognize its over until then
-     * preventing segfaults */
+    /* make sure the dest struct has enough space for an unsuccessful 
+     * compression and a 4 bytes of overflow since lz might not recognize its
+     * over until then preventing segfaults */
     m = (int)pow(2,hloglog->b);
     dest = malloc(m + sizeof(PGLZ_Header) + 4);
     memset(dest,0,m + sizeof(PGLZ_Header) + 4);
@@ -751,7 +767,8 @@ hyperloglog_compress_dense(HyperLogLogCounter hloglog)
     }
     memcpy(hloglog->data,dest,VARSIZE(dest));
 
-    /* resize the counter to only encompass the compressed data and the struct overhead*/
+    /* resize the counter to only encompass the compressed data and the struct
+     *  overhead*/
     SET_VARSIZE(hloglog,sizeof(HyperLogLogCounterData) + VARSIZE(dest) );
 
     /* invert the b value so it being < 0 can be used as a compression flag */
@@ -769,16 +786,18 @@ hyperloglog_compress_dense(HyperLogLogCounter hloglog)
     return hloglog;
 }
 
-/* Current implementation of sparse compression is rather niave. First duplicates are
- * removed then the counter is resized to store just the current values to minimize disk
- * footprint. There is room here for further optimatization. */
+/* Current implementation of sparse compression is rather niave. First 
+ * duplicates are removed then the counter is resized to store just the current
+ * values to minimize disk footprint. There is room here for further 
+ * optimatization. */
 static HyperLogLogCounter 
 hyperloglog_compress_sparse(HyperLogLogCounter hloglog)
 {
     uint32_t out;
     uint8_t * encodes;
 
-    /* add 80 (320 bytes) to allow for cases where group-varint doesn't reduce size */
+    /* add 80 (320 bytes) to allow for cases where group-varint doesn't reduce
+     * size */
     uint32_t sparse_size = size_sparse_array(hloglog->b) + 80;
 
     encodes = malloc(sparse_size*sizeof(uint32_t));
@@ -829,10 +848,12 @@ hyperloglog_decompress_dense(HyperLogLogCounter hloglog)
     int m,i;
     HyperLogLogCounter htemp;    
 
-    /* reset b to positive value for calcs and to indicate data is decompressed */
+    /* reset b to positive value for calcs and to indicate data is decompressed
+     *  */
     hloglog->b = -1 * (hloglog->b);
 
-    /* allocate and zero an array large enough to hold all the decompressed bins */
+    /* allocate and zero an array large enough to hold all the decompressed 
+     * bins */
     m = (int) pow(2,hloglog->b);
     dest = malloc(m);
     memset(dest,0,m);
@@ -840,8 +861,8 @@ hyperloglog_decompress_dense(HyperLogLogCounter hloglog)
     /* decompress the data */
     pglz_decompress((PGLZ_Header *)hloglog->data,dest);
 
-    /* copy the struct internals but not the data into a counter with enough space
-     * for the uncompressed data  */
+    /* copy the struct internals but not the data into a counter with enough 
+     * space for the uncompressed data  */
     htemp = palloc(sizeof(HyperLogLogCounterData) + (int)ceil((m * hloglog->binbits / 8.0)));
     memcpy(htemp,hloglog,sizeof(HyperLogLogCounterData));
     hloglog = htemp;

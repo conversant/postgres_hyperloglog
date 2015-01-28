@@ -266,7 +266,7 @@ CREATE OPERATOR # (
 
 -- merges two estimators into a new one
 CREATE OPERATOR || (
-    PROCEDURE = hyperloglog_merge_agg,
+    PROCEDURE = hyperloglog_merge,
     LEFTARG  = hyperloglog_estimator,
     RIGHTARG = hyperloglog_estimator,
     COMMUTATOR = ||

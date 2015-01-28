@@ -1,4 +1,5 @@
-/* Contains utility functions used for hyperloglog */
+/* Contains utility functions used for hyperloglog. Such as the hash function,
+ * the dedupe function, and the sparse_array_size function. */
 #include <stdlib.h>
 #include <math.h>
 
@@ -6,9 +7,11 @@
 #include "hyperloglog.h"
 #include "hllutils.h"
 
-/* MurmurHash64A produces the fastest 64 bit hash of the MurmurHash implementations
- * and is ~ 20x faster than md5. This version produces the same hash for the same key
- * and seed in both big and little endian systems */
+/* function definitions */
+
+/* MurmurHash64A produces the fastest 64 bit hash of the MurmurHash 
+ * implementations and is ~ 20x faster than md5. This version produces the same
+ * hash for the same key and seed in both big and little endian systems */
 uint64_t 
 MurmurHash64A (const void * key, int len, unsigned int seed) 
 {
@@ -84,6 +87,7 @@ dedupe(uint32_t * sparse_data, int idx)
     for ( i=0; i < idx - 1; i++){
         if (sparse_data[i] > sparse_data[i+1]){
             insertion_sort(sparse_data,idx);
+            //uint_pqsort(sparse_data,(size_t)idx,0,(size_t)idx);
             break;
         }
     }
@@ -103,7 +107,8 @@ dedupe(uint32_t * sparse_data, int idx)
     return j;
 }
 
-/* Returns the maximum number of 32 bits ints that can be stored in the sparse array */
+/* Returns the maximum number of 32 bits ints that can be stored in the sparse
+ *  array */
 int 
 size_sparse_array(int8_t b)
 {

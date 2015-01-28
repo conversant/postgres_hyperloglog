@@ -8,11 +8,13 @@ MODULES = hyperloglog_counter
 OUT_DIR = test/expected
 SQL_DIR = test/sql
 TESTS        = $(wildcard $(SQL_DIR)*.sql)
-REGRESS      = $(patsubst $(OUT_DIR)%,%,$(TESTS))
+REGRESS      = $(patsubst $(SQL_DIR)%,%,$(TESTS))
 REGRESS_OPTS = -X --echo-all -P null=NULL
 PSQL = psql
+PSQLOPTS  = -X --echo-all -P null=NULL
+PGOPTIONS = --client-min-messages=warning
 
-TEST = test/sql/base.out
+TEST = test/sql/base.out test/sql/aggs.out test/sql/set_ops.out test/sql/operators.out test/sql/compression.out
 
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)

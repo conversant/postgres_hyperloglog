@@ -22,7 +22,8 @@
  * 	m = (1.04/error_rate)^2
  * 	m = 1.0816/(error_rate*error_rate) 
  *
- * MIN_INDEX_BITS no real sense in being as innacurate as <4 values would be (>35%)
+ * MIN_INDEX_BITS no real sense in being as innacurate as <4 values would be 
+ * (>35%)
  *
  * MAX_INDEX_BITS error correction data only goes up to 18
  *
@@ -40,8 +41,8 @@
  * 0 - Basic implementation + compression and H++'s improved error correction at
  * low cardinalities
  *
- * 1 - Sparse encoding added for low cardinialities. Improves accuracy and storage
- * for low cardinalities. */
+ * 1 - Sparse encoding added for low cardinialities. Improves accuracy and
+ * storage for low cardinalities. */
 #define ERROR_CONST  1.0816
 #define MIN_INDEX_BITS 4
 #define MAX_INDEX_BITS 18
@@ -91,16 +92,17 @@ typedef struct HyperLogLogCounterData {
     /* number of bits for a single bucket */
     uint8_t binbits;
 
-    /* Used to indicate the version of the struct to allow further modification in hte future */
+    /* Used to indicate the version of the struct to allow further modification
+     *  in hte future */
     uint16_t version;
    
-    /* The current index of the sparse encoded data array. Also when -1 used as a flag for dense
-     * encoded counters */
+    /* The current index of the sparse encoded data array. Also when -1 used as
+     * a flag for dense encoded counters */
     int32_t idx;
  
-    /* largest observed 'rho' for each of the 'm' buckets (uses the very same trick
-     * as in the varlena type in include/c.h where additional memory is palloc'ed and
-     * treated as part of the data array ) */
+    /* largest observed 'rho' for each of the 'm' buckets (uses the very same 
+     * trick  as in the varlena type in include/c.h where additional memory 
+     * is palloc'ed and treated as part of the data array ) */
     char data[1];
     
 } HyperLogLogCounterData;
@@ -122,8 +124,8 @@ int hyperloglog_is_equal(HyperLogLogCounter counter1, HyperLogLogCounter counter
 /* Returns a copy of the counter */
 HyperLogLogCounter hyperloglog_copy(HyperLogLogCounter counter);
 
-/* Merges two counters into one. The final counter can either be a modified counter1 or
- * completely new copy. */
+/* Merges two counters into one. The final counter can either be a modified 
+ * counter1 or completely new copy. */
 HyperLogLogCounter hyperloglog_merge(HyperLogLogCounter counter1, HyperLogLogCounter counter2, short inplace);
 
 /* add element existence */
