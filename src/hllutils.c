@@ -87,7 +87,6 @@ dedupe(uint32_t * sparse_data, int idx)
     for ( i=0; i < idx - 1; i++){
         if (sparse_data[i] > sparse_data[i+1]){
             insertion_sort(sparse_data,idx);
-            //uint_pqsort(sparse_data,(size_t)idx,0,(size_t)idx);
             break;
         }
     }
