@@ -1,7 +1,7 @@
 /******************************************************************
  * Code heavily borrowed from the below author. It is primarily a  
  * conversion to C from C++. It also adds header funcs to encode
- * and decode arbitrarly sized arrays. All chinese characters were
+ * and decode arbitrarily sized arrays. All Chinese characters were
  * also removed.
  *
  * ORIGINAL AUTHOR INFO BELOW
@@ -770,7 +770,7 @@ done:
     return ptr;
 }
 
-/** Encodes groups of 4 uint32's using group varint encoding
+/* Encodes groups of 4 uint32's using group varint encoding
  * The first byte consists of 4 2-bit codes used to represent
  * the lengths (in bytes) of the 4 uints.
  * 
@@ -790,8 +790,11 @@ done:
  * 4) [00000000] [11110000] [00001111] [10101010]
  * 
  * encode into the following:
- *    tag     |     #1     |     #2     |     #3                |                #4
- * [00000110] | [00000001] | [00001111] | [11111111] [00000001] | [11110000] [00001111] [10101010]
+ *    tag     |     #1     |     #2     |     #3                | =>
+ * [00000110] | [00000001] | [00001111] | [11111111] [00000001] | =>
+ *
+ * |                #4                |
+ * | [11110000] [00001111] [10101010] |
  * 
  * This takes 16-Bytes and encodes it into 8-bytes. Obviously ratios are
  * specific to numbers encoded.
@@ -892,10 +895,9 @@ group_varint_encode_uint32 ( uint32_t * valueArr, uint8_t * target)
     return buf + len;
 }
 
-/* Takes an arbitarily sized array of sorted uint32's and group varint
+/* Takes an arbitrarily sized array of sorted uint32's and group varint
  * encodes the deltas. Remainder values (if length of array isn't 
- * divisible by 4) are group varint encoded with the missing numbers
- * as zeroes.
+ * divisible by 4) are encoded with continuation bit varint encoding.
  */
 uint32_t
 group_encode_sorted(uint32_t * input,int32_t length ,uint8_t * output)
@@ -916,7 +918,7 @@ group_encode_sorted(uint32_t * input,int32_t length ,uint8_t * output)
         }
     }
 
-    /* encode remainders by padding the missing digits with 0's*/
+    /* encode remainders by using continuation bit encoding*/
     if (length % 4 == 1){
         buffer = varint_encode_uint32(input[length - 1] - offset,buffer);
     }  else if (length % 4 == 2){
@@ -1228,8 +1230,7 @@ group_decode_sorted(const uint8_t * input, int32_t length, uint32_t * output)
         }
     }
 
-    /* Can't write directly to buffer as the padded 0's might 
-     * be outside the output array's bounds */
+    /* Decode the remainder continuation bit encoded values */
     if (length % 4 == 1){
         buffer = varint_decode_uint32(buffer,&set[0]);
         output[length - 1] = set[0] + offset;

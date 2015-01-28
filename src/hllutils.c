@@ -10,8 +10,9 @@
 /* function definitions */
 
 /* MurmurHash64A produces the fastest 64 bit hash of the MurmurHash 
- * implementations and is ~ 20x faster than md5. This version produces the same
- * hash for the same key and seed in both big and little endian systems */
+ * implementations and is ~ 20x faster than md5. This version produces the
+ * same hash for the same key and seed in both big and little endian systems
+ * */
 uint64_t 
 MurmurHash64A (const void * key, int len, unsigned int seed) 
 {
@@ -107,9 +108,9 @@ dedupe(uint32_t * sparse_data, int idx)
 }
 
 /* Returns the maximum number of 32 bits ints that can be stored in the sparse
- *  array */
+ * array */
 int 
 size_sparse_array(int8_t b)
 {
-    return  pow(2,b-4) - ceil(sizeof(HyperLogLogCounterData)/4.0);
+    return  pow(2,b-4) - ceil(sizeof(HLLData)/4.0);
 }
