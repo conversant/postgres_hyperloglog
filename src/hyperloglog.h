@@ -12,7 +12,8 @@
  * Alexander Hall.
  *
  * ---------------------------------------------------------------------------
- * DEFINED CONSTANTS 
+ * -------------------------- DEFINED CONSTANTS ------------------------------
+ * ---------------------------------------------------------------------------
  *
  * ERROR_CONST = 1.04*1.04
  * 
@@ -43,7 +44,9 @@
  * at low cardinalities
  *
  * 1 - Sparse encoding added for low cardinalities. Improves accuracy and
- * storage for low cardinalities. */
+ * storage for low cardinalities.
+ *
+ * 2 - Sparse compression added. */
 #define ERROR_CONST  1.0816
 #define MIN_INDEX_BITS 4
 #define MAX_INDEX_BITS 18
@@ -78,7 +81,7 @@
     _p[_byte+1] |= _v >> _fb8; \
 } while(0)
 
-/* type definitions */
+/* ------------------------ type declarations -------------------------- */
 typedef struct HLLData {
     
     /* length of the structure (varlena) used heavily by postgres internally*/
@@ -110,6 +113,7 @@ typedef struct HLLData {
 
 typedef HLLData * HLLCounter;
 
+/* ---------------------- function declarations ------------------------ */
 
 /* creates an optimal bitmap able to count a multiset with the expected
  * cardinality and the given error rate. */

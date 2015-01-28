@@ -1,3 +1,7 @@
+/* This file contains internal functions and several functions exposed to the
+ * outside via hyperloglog.h. The functions are for the manipulation/creation/
+ * evaluation of HLLCounters.
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -20,7 +24,7 @@ extern const float alpham[17];
 /* linear counting thresholds */
 extern const int threshold[19];
 
-/* mask */
+/* bit masks used in encode_hash */
 extern const uint32_t MASK[15][5];
 
 /* error correction data (x-values) */
@@ -32,7 +36,7 @@ extern const double biasData[15][201];
 /* precomputed inverse powers of 2 */
 extern const double PE[64];
 
-/* function declarations for local functions */
+/* ------------- function declarations for local functions --------------- */
 static double hll_estimate_dense(HLLCounter hloglog);
 static double hll_estimate_sparse(HLLCounter hloglog);
 static double error_estimate(double E,int b);
@@ -49,7 +53,7 @@ static HLLCounter hll_decompress_sparse(HLLCounter hloglog);
 
 static int hll_get_size_sparse(double ndistinct, float error);
 
-/* function definitions */
+/* ---------------------- function definitions --------------------------- */
 
 /* Allocate HLL estimator that can handle the desired cartinality and
  * precision.
@@ -171,7 +175,7 @@ hll_merge(HLLCounter counter1, HLLCounter counter2, short inplace)
              * otherwise rho can be calculated from the leading bits*/
             if (sparse_data[i] & 1) {
                 /* grab the binbits before the indicator bit and add that to
-                 *  the number of zero bits in p-p' */
+                 * the number of zero bits in p-p' */
                 idx = idx >> (32 - result->b);
                 rho = ((sparse_data[i] & (int)(pow(2,result->binbits+1) - 2)) >> 1) + (32 - 1 - result->b - result->binbits);
             } else {
