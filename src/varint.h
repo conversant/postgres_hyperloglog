@@ -4,6 +4,10 @@
  * and decode arbitrarily sized arrays. All Chinese characters were
  * also removed.
  *
+ * The original group varint encoding was developed by Google, Inc.
+ * under the Create Commons Attribution 3.0 License and the Apache 2.0
+ * License.
+ *
  * ORIGINAL AUTHOR INFO BELOW
  * -----------------------------------------------------------------
  * Created on: 2011-4-26
@@ -29,6 +33,7 @@
     valueArr[2] = ((struct GROUP_VARINT_TYPE_##idx *) star)[0].u2; \
     valueArr[3] = ((struct GROUP_VARINT_TYPE_##idx *) star)[0].u3
 
+/* ---------------------- function declarations ------------------------ */
 uint8_t * varint_encode_uint32 ( uint32_t value, uint8_t * target);
 const uint8_t * varint_decode_uint32(const uint8_t * buffer, uint32_t * value);
 uint8_t * group_varint_encode_uint32 ( uint32_t * valueArr, uint8_t * target);
@@ -42,6 +47,7 @@ inline uint64_t zigZag_encode64(int64_t  n);
 int32_t  zigZag_decode32(uint32_t n);
 inline int64_t  zigZag_decode64(uint64_t n);
 
+/* ---------------------- function definitions --------------------------- */
 /** offset lookup table for decoding
  */
 static const int GROUP_VARINT_IDX_ARR[256][5] =

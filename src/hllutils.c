@@ -7,7 +7,7 @@
 #include "hyperloglog.h"
 #include "hllutils.h"
 
-/* function definitions */
+/* ---------------------- function definitions --------------------------- */
 
 /* MurmurHash64A produces the fastest 64 bit hash of the MurmurHash 
  * implementations and is ~ 20x faster than md5. This version produces the

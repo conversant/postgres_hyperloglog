@@ -13,11 +13,13 @@
 
 #include "hllutils.h"
 
+/* ------------- function declarations for local functions --------------- */
 /* V1 specific function versions */
 static HLLCounter hll_decompress_V1(HLLCounter hloglog);
 static HLLCounter hll_decompress_dense_V1(HLLCounter hloglog);
 static HLLCounter hll_decompress_sparse_V1(HLLCounter hloglog);
 
+/* ---------------------- function definitions --------------------------- */
 /* Used to upgrade old versions to the newest version. This is needed when the
  * HyperLogLogCounterData struct changes or how its handled changes. */
 HLLCounter 

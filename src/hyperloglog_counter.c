@@ -65,7 +65,7 @@ PG_FUNCTION_INFO_V1(hyperloglog_intersection);
 PG_FUNCTION_INFO_V1(hyperloglog_compliment);
 PG_FUNCTION_INFO_V1(hyperloglog_symmetric_diff);
 
-/* function declarations */
+/* ------------- function declarations for local functions --------------- */
 Datum hyperloglog_add_item(PG_FUNCTION_ARGS);
 Datum hyperloglog_add_item_agg(PG_FUNCTION_ARGS);
 Datum hyperloglog_add_item_agg_error(PG_FUNCTION_ARGS);
@@ -104,7 +104,7 @@ Datum hyperloglog_symmetric_diff(PG_FUNCTION_ARGS);
 
 static HLLCounter pg_check_hll_version(HLLCounter hloglog);
 
-/* function definitions */
+/* ---------------------- function definitions --------------------------- */
 static HLLCounter 
 pg_check_hll_version(HLLCounter hloglog)
 {
