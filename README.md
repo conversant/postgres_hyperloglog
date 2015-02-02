@@ -62,7 +62,7 @@ The extension provides the following elements
 
 * operators
 
-	* `#`
+    * `#`
     * `||`
     * `=`
     * `<>`
@@ -80,7 +80,7 @@ The extension provides the following elements
     
 * set operations
 
-	* `hyperloglog_union(counter1 hyperloglog_estimator, counter2 hyperloglog_estimator)`
+    * `hyperloglog_union(counter1 hyperloglog_estimator, counter2 hyperloglog_estimator)`
     * `hyperloglog_intersection(counter1 hyperloglog_estimator, counter2 hyperloglog_estimator)`
     * `hyperloglog_compliment(counter1 hyperloglog_estimator, counter2 hyperloglog_estimator)`
     * `hyperloglog_symmetric_diff(counter1 hyperloglog_estimator, counter2 hyperloglog_estimator)`
@@ -92,6 +92,7 @@ Basic Usage
 -----
 Using the aggregate is quite straightforward - just use it like a
 regular aggregate function
+
 ```
 db=# SELECT hyperloglog_distinct(i)
 	 FROM generate_series(1,100000) s(i);
@@ -100,7 +101,9 @@ hyperloglog_distinct
 --------------------
 98643.35068214641
 ```
+
 The above returns an evaluated counter but if you want a counter that you can save and work with later use hyperloglog_accum
+
 ```
 db=# SELECT hyperloglog_accum(i)
 	 FROM generate_series(1,100000) s(i);
@@ -109,7 +112,9 @@ hyperloglogg_accum
 ------------------
 \362\006\002\000\377\377\377\ ...
 ```
+
 Note the first example is equivalant to the following
+
 ```
 db=# SELECT hyperloglog_get_estimate(hyperloglog_accum(i))
 	 FROM generate_series(1,100000) s(i);
@@ -118,7 +123,9 @@ hyperloglog_get_estimate
 ------------------------
 98643.35068214641
 ```
+
 Say we have a table with a hyperloglog_estimator column and we want  to get the total distinct for the whole table (i.e. merge all the counters and evaluate)
+
 ```
 db=# CREATE TEMP TABLE dummy_table AS
 	 SELECT i, hyperloglog_accum(i) as distinct_count_column
@@ -132,7 +139,9 @@ sum
 ---
 98643.35068214641
 ```
+
 Or if we want to save it for later usage we can use the hyperloglog_merge aggregation
+
 ```
 db=# CREATE TEMP TABLE dummy_table AS
 	 SELECT i, hyperloglog_accum(i) as distinct_count_column
