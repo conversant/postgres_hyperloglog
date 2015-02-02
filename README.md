@@ -43,8 +43,7 @@ The extension provides the following elements
     * `hyperloglog_info()`
     * `hyperloglog_update(counter hyperloglog_estimator)`
 
-  The purpose of the functions is quite obvious from the names,
-  alternatively consult the SQL script for more details.
+	The purpose of the functions is typically obvious from the names, alternatively consult the SQL script for more details.
 
 * aggregate functions 
 
@@ -57,8 +56,7 @@ The extension provides the following elements
     * `sum(counter hyperloglog_estimator)`
     * `hyperloglog_merge(counter hyperloglog_estimator)`
 
-  The 1-parameter version uses default error rate 0.8215% and default ndistinct of 2^63.  
-  The 2-parameter version allows the user to specify an error rate and the 3-paramater version allows the user to specify and error rate and a ndistinct.
+	The 1-parameter version uses default error rate 0.8215% and default ndistinct of 2^63. The 2-parameter version allows the user to specify an error rate and the 3-paramater version allows the user to specify and error rate and a ndistinct.
 
 * operators
 
@@ -87,9 +85,9 @@ The extension provides the following elements
     
     Its important to note all of these (except union) are based on the inclusion-exclusion principle to produce their results and can produce innacurate results especially if the two counters are of very different sizes.
     
-    
+
 Basic Usage
------
+-----------
 Using the aggregate is quite straightforward - just use it like a
 regular aggregate function
 
