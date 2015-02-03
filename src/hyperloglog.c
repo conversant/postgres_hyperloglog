@@ -74,8 +74,12 @@ hll_create(double ndistinct, float error)
     HLLCounter p;
     
     /* target error rate needs to be between 0 and 1 */
-    if (error <= 0 || error >= 1)
+    if (error <= 0 || error >= 1){
         elog(ERROR, "invalid error rate requested - only values in (0,1) allowed");
+    }
+    if (MIN_BINBITS >= (uint8_t)ceil(log2(log2(ndistinct))) || MAX_BINBITS <= (uint8_t)ceil(log2(log2(ndistinct)))){
+        elog(ERROR,"invalid ndstinct - must be between 257 and 1.1579 * 10^77");
+    } 
 
     /* the counter is allocated as part of this memory block  */
     length = hll_get_size_sparse(ndistinct, error);

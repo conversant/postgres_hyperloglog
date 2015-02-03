@@ -667,12 +667,8 @@ hyperloglog_update(PG_FUNCTION_ARGS)
         PG_RETURN_NULL();
     }
 
-    hyperloglog = (HLLCounter)PG_GETARG_BYTEA_P(0);
+    hyperloglog = (HLLCounter)PG_GETARG_BYTEA_P_COPY(0);
 
-    if (hyperloglog->b < 0){
-        hyperloglog = hll_decompress(hyperloglog);
-    }
-    
     hyperloglog = hll_upgrade(hyperloglog);
 
     PG_RETURN_BYTEA_P(hyperloglog);
@@ -684,6 +680,7 @@ hyperloglog_info(PG_FUNCTION_ARGS)
 {
     HLLCounter hyperloglog;
     char out[500], comp[4], enc[7];
+    int corrected_b;
 
     if (PG_ARGISNULL(0) ){
         PG_RETURN_NULL();
@@ -697,13 +694,22 @@ hyperloglog_info(PG_FUNCTION_ARGS)
         snprintf(comp,4,"no");
     }
 
+    if (-1*hyperloglog->b > MAX_INDEX_BITS){
+        corrected_b = -1*hyperloglog->b - MAX_INDEX_BITS;
+    } else if (hyperloglog->b < 0){
+        corrected_b = -1*hyperloglog->b;
+    } else {
+        corrected_b = hyperloglog->b;
+    }
+
     if (hyperloglog->idx == -1){
         snprintf(enc,7,"dense");
     } else {
         snprintf(enc,7,"sparse");
     }
+    
 
-    snprintf(out,500,"Counter Summary\nstruct version: %d\nsize on disk (bytes): %d\nbits per bin: %d\nindex bits: %d\nnumber of bins: %d\ncompressed?: %s\nencoding: %s\n--------------------------",hyperloglog->version,VARSIZE(hyperloglog),hyperloglog->binbits,abs(hyperloglog->b),(int)pow(2,abs(hyperloglog->b)),comp,enc);
+    snprintf(out,500,"Counter Summary\nstruct version: %d\nsize on disk (bytes): %d\nbits per bin: %d\nindex bits: %d\nnumber of bins: %d\ncompressed?: %s\nencoding: %s\n--------------------------",hyperloglog->version,VARSIZE(hyperloglog),hyperloglog->binbits,corrected_b,(int)pow(2,corrected_b),comp,enc);
 
     PG_RETURN_TEXT_P(cstring_to_text(out));
 }

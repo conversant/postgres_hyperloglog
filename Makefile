@@ -14,7 +14,7 @@ PSQL = psql
 PSQLOPTS  = -X --echo-all -P null=NULL
 PGOPTIONS = --client-min-messages=warning
 
-TEST = test/sql/base.out test/sql/aggs.out test/sql/set_ops.out test/sql/operators.out test/sql/compression.out
+TEST = test/sql/base.out test/sql/aggs.out test/sql/set_ops.out test/sql/operators.out test/sql/compression.out test/sql/update.out
 
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)

@@ -29,15 +29,19 @@ hll_upgrade(HLLCounter hloglog)
     HLLCounter htemp = 0;
     if (hloglog->version == 0){
         if (hloglog->b < 0){
-            hloglog = hll_decompress_dense_V1(hloglog);
+            m = pow(2,-1*hloglog->b);
+        } else {
+            m = pow(2,hloglog->b);
         }
-        m = pow(2,hloglog->b);
         htemp = palloc0(sizeof(HLLData) + (int)ceil((m * hloglog->binbits / 8)));
-        memcpy(htemp->data,hloglog->data,(m * hloglog->binbits / 8));
+        memcpy(htemp->data,(char *)hloglog + 8,(m * hloglog->binbits / 8));
         htemp->b = hloglog->b;
         htemp->binbits = hloglog->binbits;
         htemp->version = STRUCT_VERSION;
         htemp->idx = -1;
+        if (hloglog->b < 0){
+            htemp = hll_decompress_dense_V1(htemp);
+        }
         SET_VARSIZE(htemp, (sizeof(HLLData) +(m * hloglog->binbits / 8)));
         htemp = hll_compress(htemp);
     } else if (hloglog->version == 1){
@@ -86,7 +90,6 @@ hll_decompress_dense_V1(HLLCounter hloglog)
     char * dest;
     int m,i;
     HLLCounter htemp;
-
     /* reset b to positive value for calcs and to indicate data is
      * decompressed */
     hloglog->b = -1 * (hloglog->b);
