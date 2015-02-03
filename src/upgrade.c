@@ -41,13 +41,9 @@ hll_upgrade(HLLCounter hloglog)
         SET_VARSIZE(htemp, (sizeof(HLLData) +(m * hloglog->binbits / 8)));
         htemp = hll_compress(htemp);
     } else if (hloglog->version == 1){
-        if (hloglog->b < 0 && hloglog->idx == -1){
-            hloglog = hll_decompress_V1(hloglog);
-        } else if (hloglog->b < 0 && hloglog->idx != -1){
-            hloglog->b = hloglog->b - 18;
+        if (hloglog->b < 0){
             hloglog = hll_decompress_V1(hloglog);
         }
-
         hloglog->version = STRUCT_VERSION;
         hloglog = hll_compress(hloglog);
         htemp = hloglog;
