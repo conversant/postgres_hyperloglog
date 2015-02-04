@@ -422,8 +422,8 @@ hyperloglog_merge_agg(PG_FUNCTION_ARGS)
     } else {
 
         /* ok, we already have the estimator - merge the second one into it */
-        counter1 = PG_GETARG_HLL_P(0);
-    	counter2 = PG_GETARG_HLL_P(1);
+        counter1 = PG_GETARG_HLL_P_COPY(0);
+    	counter2 = PG_GETARG_HLL_P_COPY(1);
 
 	    /* decompress is handled inside the merge function since its not
 	     * always necessary */
