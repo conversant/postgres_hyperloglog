@@ -52,7 +52,7 @@ BEGIN
     SELECT hyperloglog_intersection(hyperloglog_accum(i),hyperloglog_accum(i*-1)) no_intersection_dense from generate_series(1,10000) s(i);
  no_intersection_dense 
 -----------------------
-      87.6327176425839
+      190.209960892465
 (1 row)
 
   
@@ -66,7 +66,7 @@ BEGIN
     SELECT hyperloglog_intersection(hyperloglog_accum(i),hyperloglog_accum(i*-1)) intersection_dense from generate_series(-1000,10000) s(i);
  intersection_dense 
 --------------------
-   2121.14464072276
+   2223.72188397264
 (1 row)
 
   
@@ -120,9 +120,9 @@ BEGIN
 
   
     SELECT hyperloglog_symmetric_diff(hyperloglog_accum(i),hyperloglog_accum(i*-1))  symmetric_diff from generate_series(-1000,10000) s(i);
- symmetric_diff  
------------------
- 17850.734756085
+  symmetric_diff  
+------------------
+ 17645.5802695852
 (1 row)
 
 ROLLBACK;

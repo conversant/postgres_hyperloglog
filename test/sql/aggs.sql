@@ -81,5 +81,27 @@ BEGIN;
             from
                 generate_series(1,10000) s(m)) m
             group by i) j;
+
+    CREATE TEMP TABLE test as select 
+        hyperloglog_accum(i) a 
+    FROM 
+        generate_series(1,1000) s(i);
+
+    INSERT INTO test SELECT 
+        hyperloglog_accum(i) 
+    FROM 
+        generate_series(1,2000) s(i);
+
+    SELECT 
+        1, 
+        #(hyperloglog_merge(a)) 
+    FROM 
+        test 
+    UNION ALL 
+    SELECT 
+        2, 
+        #(hyperloglog_merge(a)) 
+    FROM 
+        test;
     
 ROLLBACK;

@@ -367,13 +367,15 @@ hll_estimate_dense(HLLCounter hloglog)
 
 }
 
-/* estimates the error from hyperloglog's low cardinality bias and by taking
- * the nearest neighbor interpolation of the nearest 6 points */
+/* Estimates the error from hyperloglog's low cardinality bias and by taking
+ * a simple linear regression of the nearest 6 points */
 static double 
 error_estimate(double E,int b)
 {
     double avg=0;
-    int i, idx=-1, max=0;
+    double beta,alpha;
+    double sx,sxx,sxy,sy;
+    int i, idx, max=0;
 
     /* get the number of interpoloation points for that precision */
     if (b > 5 ) {
@@ -384,6 +386,8 @@ error_estimate(double E,int b)
         max = PRECISION_4_MAX_INTERPOLATION_POINTS;
     }
 
+    idx = max;
+
     /* find the index of the first interpolation point greater than the 
      * uncorrected estimate */
     for (i = 0; i < max; i++){
@@ -393,17 +397,25 @@ error_estimate(double E,int b)
         }
     }
 
-    /* take an average of the 6 nearest points working around cases where 
-     * idx + 3 > max or idx -2 < 0  */
-    if (idx == -1){
-        avg = (double)(biasData[b-4][max - 1] + biasData[b-4][max - 2] + biasData[b-4][max -3] + biasData[b-4][max - 4] + biasData[b-4][max - 5] + biasData[b-4][max - 6]) / 6;
-    } else if ( idx > 3 && idx < (max - 4)){
-        avg = (double)(biasData[b-4][idx + 3] +  biasData[b-4][idx + 2] + biasData[b-4][idx + 1] + biasData[b-4][idx] + biasData[b-4][idx - 1] + biasData[b-4][idx - 2]) / 6;
-    } else if ( idx < 4) {
-        avg = (double)(biasData[b-4][5] +  biasData[b-4][4] + biasData[b-4][3] + biasData[b-4][2] + biasData[b-4][1] + biasData[b-4][0]) / 6;
-    } else if ( idx > (max - 5)){
-        avg = (double)(biasData[b-4][max - 1] + biasData[b-4][max - 2] + biasData[b-4][max -3] + biasData[b-4][max - 4] + biasData[b-4][max - 5] + biasData[b-4][max - 6]) / 6;
+    /* make sure array indexes will be inbounds when getting 6 nearest data
+     * points */
+    if (idx < 3) {
+        idx = 3;
+    } else if ( idx > max - 2){
+        idx = max - 2;
     }
+
+    /* calculate the alpha and beta needed to interpolate the error correction
+     * for E */
+    sx = rawEstimateData[b-4][i+2] + rawEstimateData[b-4][i+1] + rawEstimateData[b-4][i] + rawEstimateData[b-4][i-1] + rawEstimateData[b-4][i-2] + rawEstimateData[b-4][i-3];
+    sxx = rawEstimateData[b-4][i+2]*rawEstimateData[b-4][i+2] + rawEstimateData[b-4][i+1]*rawEstimateData[b-4][i+1] + rawEstimateData[b-4][i]*rawEstimateData[b-4][i] + rawEstimateData[b-4][i-1]*rawEstimateData[b-4][i-1] + rawEstimateData[b-4][i-2]*rawEstimateData[b-4][i-2] + rawEstimateData[b-4][i-3]*rawEstimateData[b-4][i-3]; 
+    sy = biasData[b-4][i+2] + biasData[b-4][i+1] + biasData[b-4][i] + biasData[b-4][i-1] + biasData[b-4][i-2] + biasData[b-4][i-3];
+    sxy = rawEstimateData[b-4][i+2]*biasData[b-4][i+2] + rawEstimateData[b-4][i+1]*biasData[b-4][i+1] + rawEstimateData[b-4][i]*biasData[b-4][i] + rawEstimateData[b-4][i-1]*biasData[b-4][i-1] + rawEstimateData[b-4][i-2]*biasData[b-4][i-2] + rawEstimateData[b-4][i-3]*biasData[b-4][i-3];
+    beta = (6.0*sxy - sx*sy ) / ( 6.0*sxx - sx*sx );
+    alpha = (1.0/6.0)*sy - beta*(1.0/6.0)*sx;
+
+    avg = alpha + E*beta;
+
     return avg;
 }
 

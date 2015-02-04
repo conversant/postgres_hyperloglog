@@ -82,7 +82,7 @@ BEGIN
             group by i) j;
  merge_agg_sparse 
 ------------------
- 39955.1597639457
+ 39919.5552642784
 (1 row)
 
     SELECT 
@@ -120,7 +120,7 @@ BEGIN
             group by i) j;
  sum_sparse 
 ------------
-      39955
+      39920
 (1 row)
 
     
@@ -142,6 +142,33 @@ BEGIN
 -----------
     997108
 (1 row)
+
+    CREATE TEMP TABLE test as select 
+        hyperloglog_accum(i) a 
+    FROM 
+        generate_series(1,1000) s(i);
+SELECT 1
+    INSERT INTO test SELECT 
+        hyperloglog_accum(i) 
+    FROM 
+        generate_series(1,2000) s(i);
+INSERT 0 1
+    SELECT 
+        1, 
+        #(hyperloglog_merge(a)) 
+    FROM 
+        test 
+    UNION ALL 
+    SELECT 
+        2, 
+        #(hyperloglog_merge(a)) 
+    FROM 
+        test;
+ ?column? |     ?column?     
+----------+------------------
+        1 | 2003.67360186249
+        2 | 2003.67360186249
+(2 rows)
 
     
 ROLLBACK;
