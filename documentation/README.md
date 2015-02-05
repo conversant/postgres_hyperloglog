@@ -22,19 +22,19 @@ Flajolet's original algorithm actually uses two algorithms depending on the esti
 
 However you can clearly see that a bias still exists when the algorithm switch occurs. It doesn't reach acceptable accuracy until 5*number_of_bins (81,920). This is where some of the improvements described in the "HyperLogLog in Practice" paper are focused. Luckily hyperloglog's bias is very predictable and consistent. Using a list of empircally calculated average errors for ~200 cardinalities in this range much of this bias can be corrected. The error correction is so accurate that it actually becomes beneficial to switch to hyperloglog from linear-counting at a lower cardinality (11,500 instead of 40,960). There are several ways to to use these average errors to correct the bias. The first method tried was simply an average of the two average errors for the the cardinalities closest to the estimate.
 
-![2-point average](projects/DW/repos/hyperloglog-cardinality-estimator/documentation/2-point_average.png)
+![2-point average](2-point_average.png?raw=true)
 
 This method tends to fluctuate depending on where the estimated cardinality is in relation to nearest average error points. The paper suggests using nearest neighbour for the 6 nearest points (i.e. average of the 6 closest average error points).
 
-![6-point average](projects/DW/repos/hyperloglog-cardinality-estimator/documentation/6-point_average.png)
+![6-point average](6-point_average.png?raw=true)
 
 This produces better results on higher cardinalities however it performs much worse in the lower cardinalities. So the next attempt was using a linear interpolation of the nearest 2 average error points (i.e. draw a line between them and find where you estimate lies on the line).
 
-![2-point interpolation](projects/DW/repos/hyperloglog-cardinality-estimator/documentation/2-point_interpolation.png)
+![2-point interpolation](projects/DW/repos/hyperloglog-cardinality-estimator/documentation/2-point_interpolation.png?raw=true)
 
 This smooths the fluctuations as the cardinality ranges in between average error points. Unfortunately the higher cardinalities are slightly less accurate than the nearest 6 neighbour estimation. So in order to improve on this simple linear regression on the nearest 6 error average points was used.
 
-![6-point interpolation](projects/DW/repos/hyperloglog-cardinality-estimator/documentation/final_choice.png)
+![6-point interpolation](documentation/final_choice.png?raw=true)
 
 This produces both good results in the high and low end of the correction range and thus was the final choice for this implementation.
 
