@@ -11,7 +11,7 @@ For the sake of simplicity assume all estimators are using 2^14 buckets of 6-bit
 ### Sparse Encoding
 The first improvement is applicable to very low cardinalities. When a counter isn't populated with many entries most of the bins are entirely empty and thus most of the counter is 0's. So instead of storing the rho values in their proper bins store the value `bin_index | rho` in a list until a certain cutoff is reached (discussed in the compression section) where it is deemed no longer beneficial. This also opens up another improvement in accuracy. The concatenation of the bin_index and rho is only 20-bits long (14 + 6) so a large part of this number is 0-bits. To take advantage of this extra space a larger bin_index (25-bits in this case) is used which improves the accuracy of linear counting dramatically. This encoding method is described in greater detail in the "HyperLogLog in Practice" paper.
 
-![Sparse to Dense](sparse_to_dense_final.png)
+![Sparse to Dense](/documentation/sparse_to_dense_final.png)
 
 The improved accuracy can be seen until the counter switches from sparse encoding to dense (at 1020).
 
