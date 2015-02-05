@@ -48,6 +48,21 @@ CREATE FUNCTION hyperloglog_decomp(counter hyperloglog_estimator) RETURNS hyperl
      AS '$libdir/hyperloglog_counter', 'hyperloglog_decomp'
      LANGUAGE C IMMUTABLE STRICT;
 
+/* Utility functions */
+-- upgrades old counters into the new version
+CREATE FUNCTION  hyperloglog_update(counter hyperloglog_estimator) RETURNS hyperloglog_estimator
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_update'
+     LANGUAGE C IMMUTABLE;
+
+-- Gives info about the selected counter or about the current implementations counters
+CREATE FUNCTION  hyperloglog_info(counter hyperloglog_estimator) RETURNS TEXT
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_info'
+     LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION  hyperloglog_info() RETURNS TEXT
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_info_noargs'
+     LANGUAGE C IMMUTABLE;
+
 -- get estimator size for the default error_rate 0.8125% and default 2^64 ndistinct
 CREATE FUNCTION hyperloglog_size() RETURNS int
      AS '$libdir/hyperloglog_counter', 'hyperloglog_size_default'
