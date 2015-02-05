@@ -51,14 +51,14 @@ The method of compression is different depending on the encoding the counter is 
 ### Sparse Compression
 The sparse data is essentially a list of unsigned 32-bit integers. Since the order is unimportant because the index value is part of the 32-bit integer itself sorting the list and converting it to a list of delta's (e.g [3,2,5] => [2,+1,+2]) is lossless. This will reduce the average size of each entry significantly. Since there are still very few to no repeated values something like lz compression wouldn't be helpful. However we do have a list of integers whose length is quite limited so a type of variable length encoding would help eliminate the 0-bits and reduce the overall size. There are two main types of variable length encoding. The simplest uses a continuation bit-flag to indicate that the next byte is part of that number. However another method operates on groups of 4 integers using a leading byte to indicate the number of bytes per each integer in the group. This method is called group varint encoding.
 
-![Sparse Compression on Disc](documentation/sparse_compression_size?raw=true)
+![Sparse Compression on Disc](documentation/sparse_compression_size.png?raw=true)
 
 Group varint regularly outperforms continuation bit encoding in terms of compression ratios. However its biggest benefit is in decode speed which is cited by its developers as being ~400M numbers/second as opposed to continuation bit encodings ~180M numbers/second.
 
 ### Dense Compression
 The order of the bins must be maintained as its representitive of the index of each. However each bin has only 64 possible values. This is a good example of when something like lz compression would do very well. However since the counter is bit-packed in memory (each bin is only 6-bits long so they aren't aligned with 8-bit byte lines) lz compression won't properly detect that only 64 values are being used in each bin since it reads per byte. In order to acheive best results it was necessary to unpack the bins so now each bin is its own 8-bit unsigned integer and compress the unpacked structure.
 
-![LZ compression](documentation/lz_compression?raw=true)
+![LZ compression](documentation/lz_compression.png?raw=true)
 
 It can be seen that the counter size levels off around 9.5KB which is a reasonable improvement over the storing the raw bit-packed structure which is always ~12KB.
 
