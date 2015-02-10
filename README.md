@@ -155,6 +155,57 @@ hyperloglogg_merge
 \362\006\002\000\377\377\377\ ...     
 ```
 
+Installation
+------------
+To install on postgres run
+
+```
+make install
+```
+
+and if installing on greenplum then gscp the file to all nodes in the cluster
+
+```
+gpscp -f /home/gpadmin/hosts.all /usr/local/greenplum-db/lib/postgresql/hyperloglog_counter.so =:/usr/local/greenplum-db/lib/postgresql/
+```
+
+Then you must add the SQL file which contains the type/cast/function/aggregation/operation definitions (use the appropriate installation file for you environment)
+
+```
+psql < sql/postgres.sql
+
+psql < sql/greenplum.sql
+```
+
+To run regression tests after installation
+
+```
+make tests
+```
+
+which should yeild the following
+
+```
+test/sql/base
+ .. PASS
+test/sql/aggs
+ .. PASS
+test/sql/set_ops
+ .. PASS
+test/sql/operators
+ .. PASS
+test/sql/compression
+ .. PASS
+test/sql/update
+ .. PASS
+6 / 6 tests passed
+```
+
+Details
+-------
+To see more implementation specific details look [here](documentation/README.md)
+
+
 Problems
 --------
 Be careful about the implementation, as the estimators may easily
