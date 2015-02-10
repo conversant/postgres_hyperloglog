@@ -4,6 +4,37 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
+/*
+ * NUMOFPRECOMPUTEDEXPONENTS - The number of precomputed inverse powers of two
+ * which is 64 since the default counter only uses values 0-63 for rho. Should
+ * be a power of 2 in order to correspond with the 
+ * MAX_PRECOMPUTED_EXPONENTS_BINWIDTH value.
+ *
+ * MAX_PRECOMPUTED_EXPONENTS_BINWIDTH - the max binwidth that is supported by
+ * precomputed exponents
+ *
+ * NUMOFPRECISIONS - the number of precisions supported (4 - 18)
+ *
+ * NUMOFBINWIDTHS - number of binwidths supported (4 - 8)
+ *
+ * MAXINTERPOLATIONPOINTS - maximum number of interpolation points for any
+ * precision
+ *
+ * ALPHAMBOUND - the upper bound of the alpham array which is used to store
+ * the precomputer alpha*m values used in the estimation function
+ *
+ * THRESHOLDBOUND - the upper bound of the threshold array which is used to
+ * store the cutoff bounds for switching from linear counting to error-
+ * corrected hyperloglog algorithms to estimate cardinality
+ */
+#define NUM_OF_PRECOMPUTED_EXPONENTS 64
+#define MAX_PRECOMPUTED_EXPONENTS_BINWIDTH 6
+#define NUM_OF_PRECISIONS 15
+#define NUM_OF_BINWIDTHS 5
+#define MAX_NUM_OF_INTERPOLATION_POINTS 201
+#define ALPHAM_BOUND 17
+#define THRESHOLD_BOUND 19
+
 /* Alpha * m * m constants, for various numbers of 'b'.
  * 
  * According to hyperloglog_create the 'b' values are between 4 and 16,
@@ -13,13 +44,13 @@
  * alpha[] = {0, 0, 0, 0, 0.673, 0.697, 0.709, 0.7153, 0.7183, 0.7198, 0.7205,
  *            0.7209, 0.7211, 0.7212, 0.7213, 0.7213, 0.7213};
  */
-const float alpham[17] = {0, 0, 0, 0, 172.288 , 713.728, 2904.064,11718.991761634348, 47072.71267120224, 188686.82445861166, 755541.746198293, 3023758.3915552306, 12098218.894406674, 48399248.750978045, 193609743.86875492, 774464475.7234259, 3097908905.9095263};
+const float alpham[ALPHAM_BOUND] = {0, 0, 0, 0, 172.288 , 713.728, 2904.064,11718.991761634348, 47072.71267120224, 188686.82445861166, 755541.746198293, 3023758.3915552306, 12098218.894406674, 48399248.750978045, 193609743.86875492, 774464475.7234259, 3097908905.9095263};
 
 /* linear counting thresholds */
-const int threshold[19] = {0,0,0,0,10,20,40,80,220,400,900,1800,3100,6500,11500,20000,50000,120000,350000};
+const int threshold[THRESHOLD_BOUND] = {0,0,0,0,10,20,40,80,220,400,900,1800,3100,6500,11500,20000,50000,120000,350000};
 
 /* mask */
-const uint32_t MASK[15][5] = {{0x7FFFFF,0x3FFFFF,0x1FFFFF,0xFFFFF,0x7FFFF},
+const uint32_t MASK[NUM_OF_PRECISIONS][NUMOFBINWIDTHS] = {{0x7FFFFF,0x3FFFFF,0x1FFFFF,0xFFFFF,0x7FFFF},
                         {0x3FFFFF,0x1FFFFF,0xFFFFF,0x7FFFF,0x3FFFF},
                         {0x1FFFFF,0xFFFFF,0x7FFFF,0x3FFFF,0x1FFFF},
                         {0xFFFFF,0x7FFFF,0x3FFFF,0x1FFFF,0xFFFF},
@@ -36,7 +67,7 @@ const uint32_t MASK[15][5] = {{0x7FFFFF,0x3FFFFF,0x1FFFFF,0xFFFFF,0x7FFFF},
                         {0x1FF,0xFF,0x7F,0x3F,0x1F}};
 
 /* error correction data (x-values) */
-const double rawEstimateData[15][201] = {
+const double rawEstimateData[NUM_OF_PRECISIONS][MAX_NUM_OF_INTERPOLATION_POINTS] = {
   // precision 4
   { 11, 11.717, 12.207, 12.7896, 13.2882, 13.8204, 14.3772, 14.9342, 15.5202, 16.161, 16.7722, 17.4636, 18.0396, 18.6766, 19.3566, 20.0454, 20.7936, 21.4856, 22.2666, 22.9946, 23.766, 24.4692, 25.3638, 26.0764, 26.7864, 27.7602, 28.4814, 29.433, 30.2926, 31.0664, 31.9996, 32.7956, 33.5366, 34.5894, 35.5738, 36.2698, 37.3682, 38.0544, 39.2342, 40.0108, 40.7966, 41.9298, 42.8704, 43.6358, 44.5194, 45.773, 46.6772, 47.6174, 48.4888, 49.3304, 50.2506, 51.4996, 52.3824, 53.3078, 54.3984, 55.5838, 56.6618, 57.2174, 58.3514, 59.0802, 60.1482, 61.0376, 62.3598, 62.8078, 63.9744, 64.914, 65.781, 67.1806, 68.0594, 68.8446, 69.7928, 70.8248, 71.8324, 72.8598, 73.6246, 74.7014, 75.393, 76.6708, 77.2394, },
   // precision 5
@@ -70,7 +101,7 @@ const double rawEstimateData[15][201] = {
 };
 
 /* error correction data (y-values) */
-const double biasData[15][201] = {
+const double biasData[NUM_OF_PRECISIONS][MAX_NUM_OF_INTERPOLATION_POINTS] = {
   // precision 4
   { 10, 9.717, 9.207, 8.7896, 8.2882, 7.8204, 7.3772, 6.9342, 6.5202, 6.161, 5.7722, 5.4636, 5.0396, 4.6766, 4.3566, 4.0454, 3.7936, 3.4856, 3.2666, 2.9946, 2.766, 2.4692, 2.3638, 2.0764, 1.7864, 1.7602, 1.4814, 1.433, 1.2926, 1.0664, 0.999600000000001, 0.7956, 0.5366, 0.589399999999998, 0.573799999999999, 0.269799999999996, 0.368200000000002, 0.0544000000000011, 0.234200000000001, 0.0108000000000033, -0.203400000000002, -0.0701999999999998, -0.129600000000003, -0.364199999999997, -0.480600000000003, -0.226999999999997, -0.322800000000001, -0.382599999999996, -0.511200000000002, -0.669600000000003, -0.749400000000001, -0.500399999999999, -0.617600000000003, -0.6922, -0.601599999999998, -0.416200000000003, -0.338200000000001, -0.782600000000002, -0.648600000000002, -0.919800000000002, -0.851799999999997, -0.962400000000002, -0.6402, -1.1922, -1.0256, -1.086, -1.21899999999999, -0.819400000000002, -0.940600000000003, -1.1554, -1.2072, -1.1752, -1.16759999999999, -1.14019999999999, -1.3754, -1.29859999999999, -1.607, -1.3292, -1.7606, },
   // precision 5
@@ -104,7 +135,7 @@ const double biasData[15][201] = {
 };
 
 /* precomputed inverse powers of 2 */
-const double PE[64] = { 1.,
+const double PE[NUM_OF_PRECOMPUTED_EXPONENTS] = { 1.,
         0.5,
         0.25,
         0.125,

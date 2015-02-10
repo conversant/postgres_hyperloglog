@@ -19,22 +19,22 @@
 /* Externed Constants
  * Alpha * m * m constants, for various numbers of 'b'. See constants.h for
  * more information. */
-extern const float alpham[17];
+extern const float alpham[ALPHAM_BOUND];
 
 /* linear counting thresholds */
-extern const int threshold[19];
+extern const int threshold[THRESHOLD_BOUND];
 
 /* bit masks used in encode_hash */
-extern const uint32_t MASK[15][5];
+extern const uint32_t MASK[NUM_OF_PRECISIONS][NUM_OF_BINWIDTHS];
 
 /* error correction data (x-values) */
-extern const double rawEstimateData[15][201];
+extern const double rawEstimateData[NUM_OF_PRECISIONS][MAX_NUM_OF_INTERPOLATION_POINTS];
 
 /* error correction data (y-values) */
-extern const double biasData[15][201];
+extern const double biasData[NUM_OF_PRECISIONS][MAX_NUM_OF_INTERPOLATION_POINTS];
 
 /* precomputed inverse powers of 2 */
-extern const double PE[64];
+extern const double PE[NUM_OF_PRECOMPUTED_EXPONENTS];
 
 /* ------------- function declarations for local functions --------------- */
 static double hll_estimate_dense(HLLCounter hloglog);
@@ -323,9 +323,20 @@ hll_estimate_dense(HLLCounter hloglog)
     int m = (int)ceil(pow(2,hloglog->b));
 
     /* compute the sum for the harmonic mean */
-    for (j = 0; j < m; j++){
-        HLL_DENSE_GET_REGISTER(entry,hloglog->data,j,hloglog->binbits);
-        H += PE[entry];
+    if ( hloglog->binbits > MAX_PRECOMPUTED_EXPONENTS_BINWIDTH ){
+    	for (j = 0; j < m; j++){
+            HLL_DENSE_GET_REGISTER(entry,hloglog->data,j,hloglog->binbits);
+            H += PE[entry];
+    	}
+    } else {
+        for (j = 0; j < m; j++){
+            HLL_DENSE_GET_REGISTER(entry,hloglog->data,j,hloglog->binbits);
+            if ( 0 <= entry && entry < NUM_OF_PRECOMPUTED_EXPONENTS){
+                H += PE[entry];
+            } else {
+                H += pow(0.5,entry);
+            }
+        }
     }
 
     /* multiple by constants to turn the mean into an estimate */
