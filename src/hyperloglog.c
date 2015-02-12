@@ -331,7 +331,7 @@ hll_estimate_dense(HLLCounter hloglog)
     } else {
         for (j = 0; j < m; j++){
             HLL_DENSE_GET_REGISTER(entry,hloglog->data,j,hloglog->binbits);
-            if ( 0 <= entry && entry < NUM_OF_PRECOMPUTED_EXPONENTS){
+            if (entry < NUM_OF_PRECOMPUTED_EXPONENTS){
                 H += PE[entry];
             } else {
                 H += pow(0.5,entry);
