@@ -620,6 +620,12 @@ sparse_to_dense(HLLCounter hloglog)
     /* Sparse encoded counters are smaller than dense so new space needs to be
      *  alloced */
     sparse_data = malloc(hloglog->idx*sizeof(uint32_t));
+    if (sparse_data == NULL)
+        ereport(ERROR,
+                (errcode(ERRCODE_OUT_OF_MEMORY),
+                 errmsg("out of memory"),
+                 errdetail("Failed on request of size %zu.", hloglog->idx*sizeof(uint32_t))));
+
     memmove(sparse_data,&hloglog->data,hloglog->idx*sizeof(uint32_t));
     htemp = palloc0(sizeof(HLLData) + (int)ceil((m * hloglog->binbits / 8.0)));
     memcpy(htemp,hloglog,sizeof(HLLData));
@@ -769,8 +775,18 @@ hll_compress_dense(HLLCounter hloglog)
      * over until then preventing segfaults */
     m = (int)pow(2,hloglog->b);
     dest = malloc(m + sizeof(PGLZ_Header) + 4);
+    if (dest == NULL)
+        ereport(ERROR,
+                (errcode(ERRCODE_OUT_OF_MEMORY),
+                 errmsg("out of memory"),
+                 errdetail("Failed on request of size %zu.", m + sizeof(PGLZ_Header) + 4)));
     memset(dest,0,m + sizeof(PGLZ_Header) + 4);
     data = malloc(m);
+    if (data == NULL)
+        ereport(ERROR,
+                (errcode(ERRCODE_OUT_OF_MEMORY),
+                 errmsg("out of memory"),
+                 errdetail("Failed on request of size %d.", m)));
 
     /* put all registers in a normal array  i.e. remove dense packing so
      * lz compression can work optimally */
@@ -836,6 +852,11 @@ hll_compress_sparse(HLLCounter hloglog)
     uint32_t sparse_size = size_sparse_array(hloglog->b) + 80;
 
     encodes = malloc(sparse_size*sizeof(uint32_t));
+    if (encodes == NULL)
+        ereport(ERROR,
+                (errcode(ERRCODE_OUT_OF_MEMORY),
+                 errmsg("out of memory"),
+                 errdetail("Failed on request of size %zu.", sparse_size*sizeof(uint32_t))));
 
     hloglog->idx = dedupe((uint32_t *)hloglog->data,hloglog->idx);
 
@@ -891,6 +912,12 @@ hll_decompress_dense(HLLCounter hloglog)
      * bins */
     m = (int) pow(2,hloglog->b);
     dest = malloc(m);
+    if (dest == NULL)
+        ereport(ERROR,
+                (errcode(ERRCODE_OUT_OF_MEMORY),
+                 errmsg("out of memory"),
+                 errdetail("Failed on request of size %d.", m)));
+
     memset(dest,0,m);
 
     /* decompress the data */

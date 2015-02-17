@@ -130,7 +130,8 @@ hyperloglog_add_item(PG_FUNCTION_ARGS)
 
         Oid         element_type = get_fn_expr_argtype(fcinfo->flinfo, 1);
         Datum       element = PG_GETARG_DATUM(1);
-        int16       typlen;
+        int16       typlen_in;
+        int         typlen;
         bool        typbyval;
         char        typalign;
 
@@ -144,7 +145,8 @@ hyperloglog_add_item(PG_FUNCTION_ARGS)
          * I have noticed no measurable effect from either option. */
 
         /* get type information for the second parameter (anyelement item) */
-        get_typlenbyvalalign(element_type, &typlen, &typbyval, &typalign);
+        get_typlenbyvalalign(element_type, &typlen_in, &typbyval, &typalign);
+        typlen=(int)typlen_in;
 
 	    /* decompress if needed */
         if(hyperloglog->b < 0){
@@ -154,7 +156,8 @@ hyperloglog_add_item(PG_FUNCTION_ARGS)
         /* it this a varlena type, passed by reference or by value ? */
         if (typlen == -1) {
             /* varlena */
-            hyperloglog = hll_add_element(hyperloglog, VARDATA(element), VARSIZE(element) - VARHDRSZ);
+            typlen = (int)((VARSIZE_ANY(element) - VARHDRSZ) * -1);
+            hyperloglog = hll_add_element(hyperloglog, VARDATA(element), typlen * -1);
         } else if (typbyval) {
             /* fixed-length, passed by value */
             hyperloglog = hll_add_element(hyperloglog, (char*)&element, typlen);
@@ -180,7 +183,8 @@ hyperloglog_add_item_agg(PG_FUNCTION_ARGS)
     /* info for anyelement */
     Oid         element_type = get_fn_expr_argtype(fcinfo->flinfo, 1);
     Datum       element = PG_GETARG_DATUM(1);
-    int16       typlen;
+    int16       typlen_in;
+    int         typlen;
     bool        typbyval;
     char        typalign;
 
@@ -214,7 +218,8 @@ hyperloglog_add_item_agg(PG_FUNCTION_ARGS)
 		 * I have noticed no measurable effect from either option. */
         
         /* get type information for the second parameter (anyelement item) */
-        get_typlenbyvalalign(element_type, &typlen, &typbyval, &typalign);
+        get_typlenbyvalalign(element_type, &typlen_in, &typbyval, &typalign);
+        typlen=(int)typlen_in;
 
 	    /* decompress if needed */
         if(hyperloglog->b < 0){
@@ -224,7 +229,8 @@ hyperloglog_add_item_agg(PG_FUNCTION_ARGS)
         /* it this a varlena type, passed by reference or by value ? */
         if (typlen == -1) {
             /* varlena */
-            hyperloglog = hll_add_element(hyperloglog, VARDATA(element), VARSIZE(element) - VARHDRSZ);
+            typlen = (int)((VARSIZE_ANY(element) - VARHDRSZ) * -1);
+            hyperloglog = hll_add_element(hyperloglog, VARDATA(element), typlen * -1);
         } else if (typbyval) {
             /* fixed-length, passed by value */
             hyperloglog = hll_add_element(hyperloglog, (char*)&element, typlen);
@@ -249,7 +255,8 @@ hyperloglog_add_item_agg_error(PG_FUNCTION_ARGS)
     /* info for anyelement */
     Oid         element_type = get_fn_expr_argtype(fcinfo->flinfo, 1);
     Datum       element = PG_GETARG_DATUM(1);
-    int16       typlen;
+    int16       typlen_in;
+    int         typlen;
     bool        typbyval;
     char        typalign;
 
@@ -282,7 +289,8 @@ hyperloglog_add_item_agg_error(PG_FUNCTION_ARGS)
 		 * I have noticed no measurable effect from either option. */
         
         /* get type information for the second parameter (anyelement item) */
-        get_typlenbyvalalign(element_type, &typlen, &typbyval, &typalign);
+        get_typlenbyvalalign(element_type, &typlen_in, &typbyval, &typalign);
+        typlen=(int)typlen_in;
 
 	    /* decompress if needed */
         if(hyperloglog->b < 0){
@@ -292,7 +300,9 @@ hyperloglog_add_item_agg_error(PG_FUNCTION_ARGS)
         /* it this a varlena type, passed by reference or by value ? */
         if (typlen == -1) {
             /* varlena */
-            hyperloglog = hll_add_element(hyperloglog, VARDATA(element), VARSIZE(element) - VARHDRSZ);
+            /* leaving idnetifier of VARLENA */
+            typlen = (int)((VARSIZE_ANY(element) - VARHDRSZ) * -1);
+            hyperloglog = hll_add_element(hyperloglog, VARDATA(element), typlen * -1);
         } else if (typbyval) {
             /* fixed-length, passed by value */
             hyperloglog = hll_add_element(hyperloglog, (char*)&element, typlen);
@@ -316,7 +326,8 @@ hyperloglog_add_item_agg_default(PG_FUNCTION_ARGS)
     /* info for anyelement */
     Oid         element_type = get_fn_expr_argtype(fcinfo->flinfo, 1);
     Datum       element = PG_GETARG_DATUM(1);
-    int16       typlen;
+    int16       typlen_in;
+    int         typlen;
     bool        typbyval;
     char        typalign;
     
@@ -341,7 +352,8 @@ hyperloglog_add_item_agg_default(PG_FUNCTION_ARGS)
 		 * I have noticed no measurable effect from either option. */
 
         /* get type information for the second parameter (anyelement item) */
-        get_typlenbyvalalign(element_type, &typlen, &typbyval, &typalign);
+        get_typlenbyvalalign(element_type, &typlen_in, &typbyval, &typalign);
+        typlen=(int)typlen_in;
 
 	    /* decompress if needed */
         if(hyperloglog->b < 0){
@@ -351,7 +363,9 @@ hyperloglog_add_item_agg_default(PG_FUNCTION_ARGS)
         /* it this a varlena type, passed by reference or by value ? */
         if (typlen == -1) {
             /* varlena */
-            hyperloglog = hll_add_element(hyperloglog, VARDATA(element), VARSIZE(element) - VARHDRSZ);
+            /* leaving idnetifier of VARLENA */
+            typlen = (int)((VARSIZE_ANY(element) - VARHDRSZ) * -1);
+            hyperloglog = hll_add_element(hyperloglog, VARDATA(element), typlen * -1);
         } else if (typbyval) {
             /* fixed-length, passed by value */
             hyperloglog = hll_add_element(hyperloglog, (char*)&element, typlen);
