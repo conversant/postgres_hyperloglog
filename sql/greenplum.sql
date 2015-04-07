@@ -15,11 +15,11 @@ CREATE FUNCTION hyperloglog_out(counter hyperloglog_estimator) RETURNS cstring
      LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION hyperloglog_recv(internal) RETURNS hyperloglog_estimator
-     AS '$libdir/hyperloglog_counter', 'hyperloglog_out'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_recv'
      LANGUAGE C STRICT IMMUTABLE;
 
 CREATE FUNCTION hyperloglog_send(hyperloglog_estimator) RETURNS bytea
-     AS '$libdir/hyperloglog_counter', 'hyperloglog_out'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_send'
      LANGUAGE C STRICT IMMUTABLE;
 
 -- actual LogLog counter data type

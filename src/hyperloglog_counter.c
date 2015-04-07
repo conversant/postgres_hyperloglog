@@ -622,7 +622,7 @@ hyperloglog_send(PG_FUNCTION_ARGS)
     bytea* bp = DatumGetByteaP(dd);
     StringInfoData buf;
     pq_begintypsend(&buf);
-    pq_sendbytes(&buf, VARDATA(bp), VARSIZE(bp) - VARHDRSZ);
+    pq_sendbytes(&buf, VARDATA_ANY(bp), VARSIZE_ANY_EXHDR(bp));
     PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
