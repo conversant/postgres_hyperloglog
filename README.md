@@ -213,11 +213,11 @@ OS:
 Postgres/Greenplum Versions
 -----
 Greenplum:
-* 4.2.x
-* 4.3.[0-4]
+- 4.2.x
+- 4.3.[0-4]
 
 Postgres:
-* Current version has not been re-tested
+- Current version has not been re-tested
 
 Problems
 --------
