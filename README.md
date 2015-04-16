@@ -205,6 +205,19 @@ Details
 -------
 To see more implementation specific details look [here](documentation/README.md)
 
+Tested Platforms
+-------
+OS:
+* RHEL/CentOS 5/6
+
+Postgres/Greenplum Versions
+-----
+Greenplum:
+* 4.2.x
+* 4.3.[0-4]
+
+Postgres:
+* Current version has not been re-tested
 
 Problems
 --------
