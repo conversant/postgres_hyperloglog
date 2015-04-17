@@ -1,3 +1,5 @@
+SET search_path = public, pg_catalog;
+
 create temp table foo with (appendonly=true, compresstype=quicklz) as
 select (a%100)::int gb, a::varchar(255) v
 from generate_series(1,100000) a;

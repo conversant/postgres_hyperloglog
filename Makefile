@@ -5,6 +5,7 @@ EXTENSION = hyperloglog_counter
 DATA = sql/greenplum.sql sql/postgres.sql
 MODULES = hyperloglog_counter
 
+TEST_VERSION := $(shell psql -tAc "select case when lower(version()) like 'greenplum' then 'gp' else 'pg' end")
 OUT_DIR = test/expected
 SQL_DIR = test/sql
 TESTS        = $(wildcard $(SQL_DIR)*.sql)
@@ -14,7 +15,12 @@ PSQL = psql
 PSQLOPTS  = -X --echo-all -P null=NULL
 PGOPTIONS = --client-min-messages=warning
 
-TEST = test/sql/base.out test/sql/aggs.out test/sql/set_ops.out test/sql/operators.out test/sql/compression.out test/sql/update.out test/sql/gp_persistence.out
+BASE_TEST = $(SQL_DIR)/base.out $(SQL_DIR)/aggs.out $(SQL_DIR)/set_ops.out $(SQL_DIR)/operators.out $(SQL_DIR)/compression.out $(SQL_DIR)/update.out 
+ifeq ($(TEST_VERSION),gp)
+  TEST = $(BASE_TEST), $(SQL_DIR)/$(TEST_VERSION)/gp_persistence.out
+else
+  TEST = $(BASE_TEST)
+endif
 
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)

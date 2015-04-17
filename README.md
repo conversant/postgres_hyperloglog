@@ -186,19 +186,21 @@ make tests
 which should yeild the following
 
 ```
-test/sql/base
+test/gp/sql/base
  .. PASS
-test/sql/aggs
+test/gp/sql/aggs
  .. PASS
-test/sql/set_ops
+test/gp/sql/set_ops
  .. PASS
-test/sql/operators
+test/gp/sql/operators
  .. PASS
-test/sql/compression
+test/gp/sql/compression
  .. PASS
-test/sql/update
+test/gp/sql/update
  .. PASS
-6 / 6 tests passed
+test/gp/sql/gp_persistence
+ .. PASS
+7 / 7 tests passed
 ```
 
 Details
@@ -220,7 +222,7 @@ Greenplum:
 
 Postgres:
 
-* Current version has not been re-tested
+* 9.2 (some tests fail due to different updated compression algorithm from GP - hex data needs updated)
 
 Problems
 --------

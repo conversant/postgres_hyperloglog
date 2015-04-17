@@ -1,3 +1,5 @@
+SET search_path = public, pg_catalog;
+
 BEGIN;
 
     CREATE TEMP TABLE version0_counters AS SELECT

@@ -1,3 +1,5 @@
+SET search_path = public, pg_catalog;
+
 BEGIN;
 
     SELECT #(hyperloglog_accum(i)) hashtag_operator from generate_series(1,100) s(i);

@@ -1,3 +1,5 @@
+SET search_path = public, pg_catalog;
+SET
 BEGIN;
 BEGIN
     SELECT hyperloglog_equal(hyperloglog_accum(i),hyperloglog_accum(i)) sparse_equality from generate_series(1,100) s(i);

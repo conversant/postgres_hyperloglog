@@ -1,3 +1,5 @@
+SET search_path = public, pg_catalog;
+SET
 BEGIN;
 BEGIN
     SELECT length(hyperloglog_accum(i)) sparse_length from generate_series(1,1) s(i);
