@@ -46,10 +46,10 @@ BEGIN;
 
     SELECT hyperloglog_get_estimate_bigint(v_counter3) v_counter3_estimate_bigint from test_temp;
 
-    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter,v_counter3) merge_small_into_big from test_temp;
+    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter,v_counter3)) merge_small_into_big from test_temp;
 
-    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter3,v_counter) merge_big_into_small from test_temp;
+    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter3,v_counter)) merge_big_into_small from test_temp;
 
-    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter,v_counter) merge_same from test_temp;
+    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter,v_counter)) merge_same from test_temp;
 
 ROLLBACK;

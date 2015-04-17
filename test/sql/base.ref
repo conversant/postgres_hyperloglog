@@ -122,10 +122,23 @@ SELECT 1
                         100
 (1 row)
 
-    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter,v_counter3) merge_small_into_big from test_temp;
-    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter3,v_counter) merge_big_into_small from test_temp;
-    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter,v_counter) merge_same from test_temp;
+    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter,v_counter3)) merge_small_into_big from test_temp;
+ merge_small_into_big 
+----------------------
+     98643.3506821464
+(1 row)
+
+    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter3,v_counter)) merge_big_into_small from test_temp;
+ merge_big_into_small 
+----------------------
+     98643.3506821464
+(1 row)
+
+    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter,v_counter)) merge_same from test_temp;
+    merge_same    
+------------------
+ 98643.3506821464
+(1 row)
+
 ROLLBACK;
-psql:test/sql/base.sql:53: ERROR:  syntax error at or near "merge_small_into_big"
-LINE 1: ..._estimate(hyperloglog_merge(v_counter,v_counter3) merge_smal...
-                                                             ^
+ROLLBACK
