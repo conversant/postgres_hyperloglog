@@ -8,21 +8,21 @@ MODULES = hyperloglog_counter
 TEST_VERSION := $(shell psql -tAc "select case when lower(version()) like '%greenplum%' then 'gp' else 'pg' end")
 OUT_DIR = test/expected
 SQL_DIR = test/sql
-TESTS        = $(wildcard $(SQL_DIR)*.sql)
-REGRESS      = $(patsubst $(SQL_DIR)%,%,$(TESTS))
-REGRESS_OPTS = -X --echo-all -P null=NULL
 PSQL = psql
 PSQLOPTS  = -X --echo-all -P null=NULL
 PGOPTIONS = --client-min-messages=warning
 
-$(info $$TEST_VERSION is [${TEST_VERSION}])
-
-BASE_TEST = $(SQL_DIR)/base.out $(SQL_DIR)/aggs.out $(SQL_DIR)/set_ops.out $(SQL_DIR)/operators.out $(SQL_DIR)/compression.out $(SQL_DIR)/update.out 
+GLOBAL_BASE_TEST = aggs set_ops operators compression
 ifeq ($(TEST_VERSION),gp)
-  TEST = $(BASE_TEST) $(SQL_DIR)/gp_persistence.out
+  BASE_TEST = gp_base $(GLOBAL_BASE_TEST) gp_persistence gp_update
 else
-  TEST = $(BASE_TEST)
+  BASE_TEST = base $(GLOBAL_BASE_TEST) update
 endif
+
+TEST         = $(foreach test,$(BASE_TEST),$(SQL_DIR)/$(test).out)
+TESTS        = $(foreach test,$(BASE_TEST),$(SQL_DIR)/$(test).sql)
+REGRESS      = $(patsubst $(SQL_DIR)%,%,$(TESTS))
+REGRESS_OPTS = -X --echo-all -P null=NULL
 
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
