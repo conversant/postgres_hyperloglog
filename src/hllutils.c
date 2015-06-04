@@ -7,6 +7,39 @@
 #include "hyperloglog.h"
 #include "hllutils.h"
 
+/* precomputed powers of 2*/
+static const uint32_t POW2[32] = { 1,2,
+4,
+8,
+16,
+32,
+64,
+128,
+256,
+512,
+1024,
+2048,
+4096,
+8192,
+16384,
+32768,
+65536,
+131072,
+262144,
+524288,
+1048576,
+2097152,
+4194304,
+8388608,
+16777216,
+33554432,
+67108864,
+134217728,
+268435456,
+536870912,
+1073741824,
+2147483648};
+
 /* ---------------------- function definitions --------------------------- */
 
 /* MurmurHash64A produces the fastest 64 bit hash of the MurmurHash 
@@ -112,5 +145,5 @@ dedupe(uint32_t * sparse_data, int idx)
 int 
 size_sparse_array(int8_t b)
 {
-    return  pow(2,b-4) - ceil(sizeof(HLLData)/4.0);
+    return  POW2[b-4] - ceil(sizeof(HLLData)/4.0);
 }

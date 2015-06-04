@@ -65,6 +65,10 @@ PG_FUNCTION_INFO_V1(hyperloglog_intersection);
 PG_FUNCTION_INFO_V1(hyperloglog_compliment);
 PG_FUNCTION_INFO_V1(hyperloglog_symmetric_diff);
 
+PG_FUNCTION_INFO_V1(hyperloglog_merge_agg_opt);
+PG_FUNCTION_INFO_V1(hyperloglog_get_estimate_opt);
+PG_FUNCTION_INFO_V1(hyperloglog_unpack);
+
 /* ------------- function declarations for local functions --------------- */
 Datum hyperloglog_add_item(PG_FUNCTION_ARGS);
 Datum hyperloglog_add_item_agg(PG_FUNCTION_ARGS);
@@ -102,6 +106,10 @@ Datum hyperloglog_intersection(PG_FUNCTION_ARGS);
 Datum hyperloglog_compliment(PG_FUNCTION_ARGS);
 Datum hyperloglog_symmetric_diff(PG_FUNCTION_ARGS);
 
+Datum hyperloglog_merge_agg_opt(PG_FUNCTION_ARGS);
+Datum hyperloglog_get_estimate_opt(PG_FUNCTION_ARGS);
+Datum hyperloglog_unpack(PG_FUNCTION_ARGS);
+
 static HLLCounter pg_check_hll_version(HLLCounter hloglog);
 
 /* ---------------------- function definitions --------------------------- */
@@ -112,6 +120,92 @@ pg_check_hll_version(HLLCounter hloglog)
         elog(ERROR,"ERROR: The stored counter is version %u while the library is version %u. Please change library version or use upgrade function to upgrade the counter",hloglog->version,STRUCT_VERSION);
     }
     return hloglog;
+}
+
+Datum
+hyperloglog_unpack(PG_FUNCTION_ARGS)
+{
+    HLLCounter hyperloglog;
+
+    if (PG_ARGISNULL(0) ){
+        PG_RETURN_NULL();
+    }
+
+    hyperloglog =  PG_GETARG_HLL_P_COPY(0);
+    
+    if (hyperloglog->idx == -1){
+    	hyperloglog = hll_decompress_opt(hyperloglog);
+    }
+
+    PG_RETURN_BYTEA_P(hyperloglog);
+}
+
+
+Datum
+hyperloglog_merge_agg_opt(PG_FUNCTION_ARGS)
+{
+
+	HLLCounter counter1;
+	HLLCounter counter2;
+
+	if (PG_ARGISNULL(0) && PG_ARGISNULL(1)){
+		/* if both counters are null return null */
+		PG_RETURN_NULL();
+
+	}
+	else if (PG_ARGISNULL(0)) {
+		/* if first counter is null just copy the second estimator into the
+ * 		* first one */
+		counter1 = PG_GETARG_HLL_P(1);
+
+	}
+	else if (PG_ARGISNULL(1)) {
+		/* if second counter is null just return the the first estimator */
+		counter1 = PG_GETARG_HLL_P(0);
+
+	}
+	else {
+
+		/* ok, we already have the estimator - merge the second one into it */
+		counter1 = PG_GETARG_HLL_P(0);
+		counter2 = PG_GETARG_HLL_P(1);
+		
+		/* decompress is handled inside the merge function since its not
+ * 		* always necessary */
+		if (counter1->b < 0){
+			counter1 = hll_decompress_opt(counter1);
+		}
+		if (counter2->b < 0){
+			counter2 = hll_decompress_opt(counter2);
+		}
+		
+		/* perform the merge (in place) */
+		counter1 = hll_merge_opt(counter1, counter2);
+	}
+
+	/* return the updated bytea */
+	PG_RETURN_BYTEA_P(counter1);
+
+
+}
+
+Datum
+hyperloglog_get_estimate_opt(PG_FUNCTION_ARGS)
+{
+
+	double estimate;
+	HLLCounter hyperloglog = PG_GETARG_HLL_P(0);
+
+	/* decompress if needed */
+	if (hyperloglog->b < 0){
+		hyperloglog = hll_decompress_opt(hyperloglog);
+	}
+
+	estimate = hll_estimate_opt(hyperloglog);
+
+	/* return the updated bytea */
+	PG_RETURN_FLOAT8(estimate);
+
 }
 
 Datum

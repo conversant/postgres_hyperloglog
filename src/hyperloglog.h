@@ -148,4 +148,8 @@ void hll_reset_internal(HLLCounter hloglog);
 HLLCounter hll_compress(HLLCounter hloglog);
 HLLCounter hll_decompress(HLLCounter hloglog);
 
+HLLCounter hll_merge_opt(HLLCounter counter1, HLLCounter counter2);
+double hll_estimate_opt(HLLCounter hloglog);
+HLLCounter hll_decompress_opt(HLLCounter hloglog);
+
 #endif // #ifndef _HYPERLOGLOG_H_
