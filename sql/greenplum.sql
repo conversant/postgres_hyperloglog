@@ -50,6 +50,11 @@ CREATE OR REPLACE FUNCTION hyperloglog_decomp(counter hyperloglog_estimator) RET
      LANGUAGE C IMMUTABLE STRICT;
 COMMENT ON FUNCTION hyperloglog_decomp(counter hyperloglog_estimator) IS 'Decompress and return a bitpacked version of the hyperloglog_estimator';
 
+CREATE OR REPLACE FUNCTION hyperloglog_unpack(counter hyperloglog_estimator) RETURNS hyperloglog_estimator
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_unpack'
+     LANGUAGE C IMMUTABLE STRICT;
+COMMENT ON FUNCTION hyperloglog_unpack(counter hyperloglog_estimator) IS 'Return an unpacked version of the hyperloglog_estimator';
+
 /* Utility functions */
 -- upgrades old counters into the new version
 CREATE OR REPLACE FUNCTION  hyperloglog_update(counter hyperloglog_estimator) RETURNS hyperloglog_estimator
