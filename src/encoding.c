@@ -1,3 +1,4 @@
+#include "postgres.h"
 #include "encoding.h"
 
 static const char _base64[] =
@@ -14,8 +15,9 @@ static const int8 b64lookup[128] = {
 	41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, -1, -1, -1, -1, -1,
 };
 
-unsigned
-b64_encode(const char *src, unsigned len, char *dst)
+
+int
+hll_b64_encode(const char *src, unsigned len, char *dst)
 {
 	char	   *p,
 		*lend = dst + 76;
@@ -26,6 +28,7 @@ b64_encode(const char *src, unsigned len, char *dst)
 
 	s = src;
 	p = dst;
+
 
 	while (s < end)
 	{
@@ -61,8 +64,8 @@ b64_encode(const char *src, unsigned len, char *dst)
 	return p - dst;
 }
 
-unsigned
-b64_decode(const char *src, unsigned len, char *dst)
+int
+hll_b64_decode(const char *src, unsigned len, char *dst)
 {
 	const char *srcend = src + len,
 		*s = src;
@@ -72,6 +75,7 @@ b64_decode(const char *src, unsigned len, char *dst)
 	uint32		buf = 0;
 	int			pos = 0,
 		end = 0;
+
 
 	while (s < srcend)
 	{
@@ -130,14 +134,14 @@ b64_decode(const char *src, unsigned len, char *dst)
 }
 
 
-unsigned
+int
 b64_enc_len(const char *src, unsigned srclen)
 {
 	/* 3 bytes will be converted to 4, linefeed after 76 chars */
 	return (srclen + 2) * 4 / 3 + srclen / (76 * 3 / 4);
 }
 
-unsigned
+int
 b64_dec_len(const char *src, unsigned srclen)
 {
 	return (srclen * 3) >> 2;

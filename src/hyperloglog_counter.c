@@ -615,8 +615,8 @@ hyperloglog_out(PG_FUNCTION_ARGS)
 	datalen = VARSIZE(data) - VARHDRSZ;
 	resultlen = b64_enc_len(VARDATA(data), datalen);
 	result = palloc(VARHDRSZ + resultlen);
-	res = b64_encode(VARDATA(data),datalen, result);
-
+	res = hll_b64_encode(VARDATA(data),datalen, result);
+	
 	/* Make this FATAL 'cause we've trodden on memory ... */
 	if (res > resultlen)
 		elog(FATAL, "overflow - encode estimate too small");
@@ -635,7 +635,7 @@ hyperloglog_in(PG_FUNCTION_ARGS)
 	datalen = VARSIZE(data) - VARHDRSZ;
 	resultlen = b64_dec_len(VARDATA(data),datalen);
 	result = palloc(VARHDRSZ + resultlen);
-	res = b64_decode(VARDATA(data), datalen, VARDATA(result));
+	res = hll_b64_decode(VARDATA(data), datalen, VARDATA(result));
 
 	/* Make this FATAL 'cause we've trodden on memory ... */
 	if (res > resultlen)
@@ -802,7 +802,7 @@ hyperloglog_equal(PG_FUNCTION_ARGS)
 		}
 
 
-        PG_RETURN_BOOL(hll_is_equal_opt(counter1, counter2));
+        PG_RETURN_BOOL(hll_is_equal(counter1, counter2));
     }
 
 }
@@ -829,7 +829,7 @@ hyperloglog_not_equal(PG_FUNCTION_ARGS)
 		}
 
 
-        PG_RETURN_BOOL(!hll_is_equal_opt(counter1, counter2));
+        PG_RETURN_BOOL(!hll_is_equal(counter1, counter2));
     }
 
 }

@@ -349,7 +349,7 @@ hll_merge(HLLCounter counter1, HLLCounter counter2)
 				result->idx = dedupe((uint32_t *)result->data, result->idx);
 				if (result->idx > size_sparse_array(result->b) * (7.0 / 8)) {
 					result = sparse_to_dense_unpacked(result);
-					result = hll_merge_opt(result, counter2);
+					result = hll_merge(result, counter2);
 					return result;
 				}
 			}
@@ -888,8 +888,8 @@ hll_is_equal(HLLCounter counter1, HLLCounter counter2)
         elog(ERROR, "index size (bit length) of estimators differs (%d != %d)", counter1->b, counter2->b);
     else if (counter1->binbits != counter2->binbits)
         elog(ERROR, "bin size of estimators differs (%d != %d)", counter1->binbits, counter2->binbits);
-	else if (counter1->format != 1 || counter2->format != 1)
-		elog(ERROR, "Estimator(s) are not unpacked! (%d,%d)", counter1->format, counter2->format);
+    else if ((counter1->format != 1 && counter1->idx == -1) || (counter2->format != 1 && counter2->idx == -1))
+	elog(ERROR, "Estimator(s) are not unpacked! (%d,%d)", counter1->format, counter2->format);
 
     /* compare registers returning false on any difference */
     if (counter1->idx == -1 && counter2->idx == -1){
