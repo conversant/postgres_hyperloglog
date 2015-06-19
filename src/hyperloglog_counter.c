@@ -111,6 +111,15 @@ Datum hyperloglog_get_estimate_opt(PG_FUNCTION_ARGS);
 Datum hyperloglog_unpack(PG_FUNCTION_ARGS);
 
 static HLLCounter pg_check_hll_version(HLLCounter hloglog);
+static unsigned
+b64_encode(const char *src, unsigned len, char *dst);
+static unsigned
+b64_decode(const char *src, unsigned len, char *dst);
+static unsigned
+b64_enc_len(const char *src, unsigned srclen);
+static unsigned
+b64_dec_len(const char *src, unsigned srclen);
+
 
 /* ---------------------- function definitions --------------------------- */
 static HLLCounter 
@@ -174,10 +183,15 @@ hyperloglog_merge_agg_opt(PG_FUNCTION_ARGS)
  * 		* always necessary */
 		if (counter1->b < 0){
 			counter1 = hll_decompress_opt(counter1);
+		} else if (counter1->format == 0) {
+			counter1 = hll_unpack(counter1);
 		}
 		if (counter2->b < 0){
 			counter2 = hll_decompress_opt(counter2);
-		}
+		} else if (counter2->format == 0) {
+                        counter2 = hll_unpack(counter2);
+                }
+
 		
 		/* perform the merge (in place) */
 		counter1 = hll_merge_opt(counter1, counter2);
@@ -199,7 +213,10 @@ hyperloglog_get_estimate_opt(PG_FUNCTION_ARGS)
 	/* decompress if needed */
 	if (hyperloglog->b < 0){
 		hyperloglog = hll_decompress_opt(hyperloglog);
-	}
+	} else if (hyperloglog->format == 0) {
+               hyperloglog = hll_unpack(hyperloglog);
+        }
+
 
 	estimate = hll_estimate_opt(hyperloglog);
 
@@ -481,13 +498,18 @@ hyperloglog_merge_simple(PG_FUNCTION_ARGS)
 
 	    /* decompress if needed */
         if(counter1->b < 0){
-            counter1 = hll_decompress(counter1);
-        }
+            counter1 = hll_decompress_opt(counter1);
+        } else if (counter1->format == 0){
+	    counter1 = hll_unpack(counter1);
+	}
 	    if(counter2->b < 0){
-            counter2 = hll_decompress(counter2);
+            counter2 = hll_decompress_opt(counter2);
+        } else if (counter2->format == 0){
+            counter2 = hll_unpack(counter2);
         }
+
         
-        counter1 = hll_merge(counter1, counter2, false);
+        counter1 = hll_merge_opt(counter1, counter2);
     }
 
     PG_RETURN_BYTEA_P(counter1);
@@ -523,14 +545,18 @@ hyperloglog_merge_agg(PG_FUNCTION_ARGS)
 	    /* decompress is handled inside the merge function since its not
 	     * always necessary */
         if(counter1->b < 0){
-            counter1 = hll_decompress(counter1);
-        }
-        if(counter2->b < 0){
-            counter2 = hll_decompress(counter2);
+            counter1 = hll_decompress_opt(counter1);
+        } else if (counter1->format == 0) {
+		counter1 = hll_unpack(counter1);
+	}
+            if(counter2->b < 0){
+            counter2 = hll_decompress_opt(counter2);
+        } else if (counter2->format == 0) {
+                counter2 = hll_unpack(counter2);
         }
 
         /* perform the merge (in place) */
-        counter1 = hll_merge(counter1, counter2, true);
+        counter1 = hll_merge_opt(counter1, counter2);
 
     }
 
@@ -550,10 +576,13 @@ hyperloglog_get_estimate(PG_FUNCTION_ARGS)
     
     /* decompress if needed */
     if(hyperloglog->b < 0){
-        hyperloglog = hll_decompress(hyperloglog);
-    }    
+        hyperloglog = hll_decompress_opt(hyperloglog);
+    } else if (hyperloglog->format == 0){
+	hyperloglog = hll_unpack(hyperloglog);
+    }
 
-    estimate = hll_estimate(hyperloglog);
+
+    estimate = hll_estimate_opt(hyperloglog);
 
     /* return the updated bytea */
     PG_RETURN_FLOAT8(estimate);
@@ -662,35 +691,191 @@ hyperloglog_reset(PG_FUNCTION_ARGS)
 }
 
 
-/*
- *		byteain			- converts from printable representation of byte array
- *
- *		Non-printable characters must be passed as '\nnn' (octal) and are
- *		converted to internal form.  '\' must be passed as '\\'.
- *		ereport(ERROR, ...) if bad form.
- *
- *		BUGS:
- *				The input is scanned twice.
- *				The error checking of input is minimal.
- */
-Datum
-hyperloglog_in(PG_FUNCTION_ARGS)
+static const char _base64[] =
+"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+static const int8 b64lookup[128] = {
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+	-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 62, -1, -1, -1, 63,
+	52, 53, 54, 55, 56, 57, 58, 59, 60, 61, -1, -1, -1, -1, -1, -1,
+	-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+	15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, -1, -1, -1, -1, -1,
+	-1, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+	41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, -1, -1, -1, -1, -1,
+};
+
+static unsigned
+b64_encode(const char *src, unsigned len, char *dst)
 {
-	Datum dd = DirectFunctionCall1(byteain, PG_GETARG_DATUM(0));
-	return dd;
+	char	   *p,
+			   *lend = dst + 76;
+	const char *s,
+			   *end = src + len;
+	int			pos = 2;
+	uint32		buf = 0;
+
+	s = src;
+	p = dst;
+
+	while (s < end)
+	{
+		buf |= (unsigned char) *s << (pos << 3);
+		pos--;
+		s++;
+
+		/* write it out */
+		if (pos < 0)
+		{
+			*p++ = _base64[(buf >> 18) & 0x3f];
+			*p++ = _base64[(buf >> 12) & 0x3f];
+			*p++ = _base64[(buf >> 6) & 0x3f];
+			*p++ = _base64[buf & 0x3f];
+
+			pos = 2;
+			buf = 0;
+		}
+		if (p >= lend)
+		{
+			*p++ = '\n';
+			lend = p + 76;
+		}
+	}
+	if (pos != 2)
+	{
+		*p++ = _base64[(buf >> 18) & 0x3f];
+		*p++ = _base64[(buf >> 12) & 0x3f];
+		*p++ = (pos == 0) ? _base64[(buf >> 6) & 0x3f] : '=';
+		*p++ = '=';
+	}
+
+	return p - dst;
 }
 
-/*
- *		byteaout		- converts to printable representation of byte array
- *
- *		In the traditional escaped format, non-printable characters are
- *		printed as '\nnn' (octal) and '\' as '\\'.
- */
+static unsigned
+b64_decode(const char *src, unsigned len, char *dst)
+{
+	const char *srcend = src + len,
+			   *s = src;
+	char	   *p = dst;
+	char		c;
+	int			b = 0;
+	uint32		buf = 0;
+	int			pos = 0,
+				end = 0;
+
+	while (s < srcend)
+	{
+		c = *s++;
+
+		if (c == ' ' || c == '\t' || c == '\n' || c == '\r')
+			continue;
+
+		if (c == '=')
+		{
+			/* end sequence */
+			if (!end)
+			{
+				if (pos == 2)
+					end = 1;
+				else if (pos == 3)
+					end = 2;
+				else
+					ereport(ERROR,
+							(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+							 errmsg("unexpected \"=\"")));
+			}
+			b = 0;
+		}
+		else
+		{
+			b = -1;
+			if (c > 0 && c < 127)
+				b = b64lookup[(unsigned char) c];
+			if (b < 0)
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						 errmsg("invalid symbol")));
+		}
+		/* add it to buffer */
+		buf = (buf << 6) + b;
+		pos++;
+		if (pos == 4)
+		{
+			*p++ = (buf >> 16) & 255;
+			if (end == 0 || end > 1)
+				*p++ = (buf >> 8) & 255;
+			if (end == 0 || end > 2)
+				*p++ = buf & 255;
+			buf = 0;
+			pos = 0;
+		}
+	}
+
+	if (pos != 0)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("invalid end sequence")));
+
+	return p - dst;
+}
+
+
+static unsigned
+b64_enc_len(const char *src, unsigned srclen)
+{
+	/* 3 bytes will be converted to 4, linefeed after 76 chars */
+	return (srclen + 2) * 4 / 3 + srclen / (76 * 3 / 4);
+}
+
+static unsigned
+b64_dec_len(const char *src, unsigned srclen)
+{
+	return (srclen * 3) >> 2;
+}
+
+
 Datum
 hyperloglog_out(PG_FUNCTION_ARGS)
 {
-	Datum dd = DirectFunctionCall1(byteaout, PG_GETARG_DATUM(0));
-	return dd;
+	int datalen, resultlen, res;
+	char *result;
+	bytea	   *data = PG_GETARG_BYTEA_P(0);
+	datalen = VARSIZE(data) - VARHDRSZ;
+
+	resultlen = b64_enc_len(VARDATA(data), datalen);
+	result = palloc(VARHDRSZ + resultlen);
+	res = b64_encode(VARDATA(data),datalen, result);
+
+	/* Make this FATAL 'cause we've trodden on memory ... */
+	if (res > resultlen)
+		elog(FATAL, "overflow - encode estimate too small");
+
+
+	PG_RETURN_CSTRING(result);
+}
+
+Datum
+hyperloglog_in(PG_FUNCTION_ARGS)
+{
+	bytea	   *result;
+	text	   *data = PG_GETARG_TEXT_P(0);
+	int			datalen,
+				resultlen,
+				res;
+
+	datalen = VARSIZE(data) - VARHDRSZ;
+	resultlen = b64_dec_len(VARDATA(data),datalen);
+	result = palloc(VARHDRSZ + resultlen);
+	res = b64_decode(VARDATA(data), datalen, VARDATA(result));
+
+	/* Make this FATAL 'cause we've trodden on memory ... */
+	if (res > resultlen)
+		elog(FATAL, "overflow - decode estimate too small");
+
+	SET_VARSIZE(result, VARHDRSZ + res);
+
+	PG_RETURN_BYTEA_P(result);
 	
 }
 
@@ -732,7 +917,7 @@ hyperloglog_comp(PG_FUNCTION_ARGS)
     hyperloglog =  PG_GETARG_HLL_P_COPY(0);
 
     hyperloglog = hll_compress(hyperloglog);
-    
+
     PG_RETURN_BYTEA_P(hyperloglog);
 }
 
@@ -746,8 +931,9 @@ hyperloglog_decomp(PG_FUNCTION_ARGS)
     }
 
     hyperloglog =  PG_GETARG_HLL_P_COPY(0);
-
-    hyperloglog = hll_decompress(hyperloglog);
+    if (hyperloglog-> b < 0 && hyperloglog->format == 0 ) {
+	hyperloglog = hll_decompress(hyperloglog);
+    }
 
     PG_RETURN_BYTEA_P(hyperloglog);
 }
@@ -836,13 +1022,19 @@ hyperloglog_equal(PG_FUNCTION_ARGS)
 
 	    /* decompress if needed */
         if(counter1->b < 0){
-            counter1 = hll_decompress(counter1);
-        }
-	    if(counter2->b < 0){
-            counter2 = hll_decompress(counter2);
+            counter1 = hll_decompress_opt(counter1);
+        } else if ( counter1->format == 0 ) {
+            counter1 = hll_unpack(counter1);
         }
 
-        PG_RETURN_BOOL(hll_is_equal(counter1, counter2));
+	    if(counter2->b < 0){
+            counter2 = hll_decompress_opt(counter2);
+        }else if ( counter2->format == 0 ) {
+            counter2 = hll_unpack(counter2);
+        }
+
+
+        PG_RETURN_BOOL(hll_is_equal_opt(counter1, counter2));
     }
 
 }
@@ -862,13 +1054,18 @@ hyperloglog_not_equal(PG_FUNCTION_ARGS)
 
 	    /* decompress if needed */
         if(counter1->b < 0){
-            counter1 = hll_decompress(counter1);
+            counter1 = hll_decompress_opt(counter1);
+        } else if ( counter1->format == 0 ) {
+            counter1 = hll_unpack(counter1);
         }
 	    if(counter2->b < 0){
-            counter2 = hll_decompress(counter2);
+            counter2 = hll_decompress_opt(counter2);
+        }else if ( counter2->format == 0 ) {
+            counter2 = hll_unpack(counter2);
         }
 
-        PG_RETURN_BOOL(!hll_is_equal(counter1, counter2));
+
+        PG_RETURN_BOOL(!hll_is_equal_opt(counter1, counter2));
     }
 
 }
@@ -887,32 +1084,44 @@ hyperloglog_union(PG_FUNCTION_ARGS)
 
 	    /* decompress if needed */
         if(counter2->b < 0){
-            counter2 = hll_decompress(counter2);
+            counter2 = hll_decompress_opt(counter2);
+        }else if ( counter2->format == 0 ) {
+            counter2 = hll_unpack(counter2);
         }
+
 	
-        PG_RETURN_FLOAT8(hll_estimate(counter2));
+        PG_RETURN_FLOAT8(hll_estimate_opt(counter2));
     } else if (PG_ARGISNULL(1)) {
 	    counter1 = PG_GETARG_HLL_P_COPY(0);
 
 	    /* decompress if needed */
         if(counter1->b < 0){
-            counter1 = hll_decompress(counter1);
+            counter1 = hll_decompress_opt(counter1);
+        } else if ( counter1->format == 0 ) {
+            counter1 = hll_unpack(counter1);
         }
 
-        PG_RETURN_FLOAT8(hll_estimate(counter1));
+
+        PG_RETURN_FLOAT8(hll_estimate_opt(counter1));
     } else {
 	    counter1 = PG_GETARG_HLL_P_COPY(0);
 	    counter2 = PG_GETARG_HLL_P_COPY(1);
 
 	    /* decompress if needed */
         if(counter1->b < 0){
-            counter1 = hll_decompress(counter1);
-        }
-	    if(counter2->b < 0){
-            counter2 = hll_decompress(counter2);
+            counter1 = hll_decompress_opt(counter1);
+        } else if ( counter1->format == 0 ) {
+            counter1 = hll_unpack(counter1);
         }
 
-        PG_RETURN_FLOAT8(hll_estimate(hll_merge(counter1, counter2,false)));
+	    if(counter2->b < 0){
+            counter2 = hll_decompress_opt(counter2);
+        } else if ( counter2->format == 0 ) {
+            counter2 = hll_unpack(counter2);
+        }
+
+
+        PG_RETURN_FLOAT8(hll_estimate_opt(hll_merge_opt(counter1, counter2)));
     }
 
 }
@@ -933,15 +1142,20 @@ hyperloglog_intersection(PG_FUNCTION_ARGS)
 
 	    /* decompress if needed */
         if(counter1->b < 0){
-            counter1 = hll_decompress(counter1);
-        }
-	    if(counter2->b < 0){
-            counter2 = hll_decompress(counter2);
+            counter1 = hll_decompress_opt(counter1);
+        } else if ( counter1->format == 0 ) {
+            counter1 = hll_unpack(counter1);
         }
 
-        A = hll_estimate(counter1);
-        B = hll_estimate(counter2);
-        AUB = hll_estimate(hll_merge(counter1, counter2,false));
+	    if(counter2->b < 0){
+            counter2 = hll_decompress_opt(counter2);
+        } else if ( counter2->format == 0 ) {
+            counter2 = hll_unpack(counter2);
+        }
+
+        A = hll_estimate_opt(counter1);
+        B = hll_estimate_opt(counter2);
+        AUB = hll_estimate_opt(hll_merge_opt(counter1, counter2));
         PG_RETURN_FLOAT8(A + B - AUB);
     }
 
@@ -962,33 +1176,44 @@ hyperloglog_compliment(PG_FUNCTION_ARGS)
 
 	    /* decompress if needed */
         if(counter2->b < 0){
-            counter2 = hll_decompress(counter2);
+            counter2 = hll_decompress_opt(counter2);
+        } else if ( counter2->format == 0 ) {
+            counter2 = hll_unpack(counter2);
         }
 	
-        PG_RETURN_FLOAT8(hll_estimate(counter2));
+        PG_RETURN_FLOAT8(hll_estimate_opt(counter2));
     } else if (PG_ARGISNULL(1)) {
 	    counter1 = PG_GETARG_HLL_P_COPY(0);
 
 	    /* decompress if needed */
         if(counter1->b < 0){
-            counter1 = hll_decompress(counter1);
+            counter1 = hll_decompress_opt(counter1);
+        } else if ( counter1->format == 0 ) {
+            counter1 = hll_unpack(counter1);
         }
 
-        PG_RETURN_FLOAT8(hll_estimate(counter1));
+
+        PG_RETURN_FLOAT8(hll_estimate_opt(counter1));
     } else {
 	    counter1 = PG_GETARG_HLL_P_COPY(0);
 	    counter2 = PG_GETARG_HLL_P_COPY(1);
 
 	    /* decompress if needed */
         if(counter1->b < 0){
-            counter1 = hll_decompress(counter1);
-        }
-    	if(counter2->b < 0){
-            counter2 = hll_decompress(counter2);
+            counter1 = hll_decompress_opt(counter1);
+        } else if ( counter1->format == 0 ) {
+            counter1 = hll_unpack(counter1);
         }
 
-        B = hll_estimate(counter2);
-        AUB = hll_estimate(hll_merge(counter1, counter2,false));
+    	if(counter2->b < 0){
+            counter2 = hll_decompress_opt(counter2);
+        } else if ( counter2->format == 0 ) {
+            counter2 = hll_unpack(counter2);
+        }
+
+
+        B = hll_estimate_opt(counter2);
+        AUB = hll_estimate_opt(hll_merge_opt(counter1, counter2));
         PG_RETURN_FLOAT8(AUB - B);
     }
 
@@ -1009,34 +1234,45 @@ hyperloglog_symmetric_diff(PG_FUNCTION_ARGS)
 
 	    /* decompress if needed */
         if(counter2->b < 0){
-            counter2 = hll_decompress(counter2);
-        }
+            counter2 = hll_decompress_opt(counter2);
+        } else if ( counter2->format == 0 ) {
+	    counter2 = hll_unpack(counter2);
+	}
 	
-        PG_RETURN_FLOAT8(hll_estimate(counter2));
+        PG_RETURN_FLOAT8(hll_estimate_opt(counter2));
     } else if (PG_ARGISNULL(1)) {
 	    counter1 = PG_GETARG_HLL_P_COPY(0);
 
 	    /* decompress if needed */
         if(counter1->b < 0){
-            counter1 = hll_decompress(counter1);
+            counter1 = hll_decompress_opt(counter1);
+        }else if ( counter1->format == 0 ) {
+            counter1 = hll_unpack(counter1);
         }
 
-        PG_RETURN_FLOAT8(hll_estimate(counter1));
+
+        PG_RETURN_FLOAT8(hll_estimate_opt(counter1));
     } else {
 	    counter1 = PG_GETARG_HLL_P_COPY(0);
 	    counter2 = PG_GETARG_HLL_P_COPY(1);
 
 	    /* decompress if needed */
         if(counter1->b < 0){
-            counter1 = hll_decompress(counter1);
+            counter1 = hll_decompress_opt(counter1);
+        } else if ( counter1->format == 0 ) {
+            counter1 = hll_unpack(counter1);
         }
-	    if(counter2->b < 0){
-            counter2 = hll_decompress(counter2);
-        } 
 
-        A = hll_estimate(counter1);
-        B = hll_estimate(counter2);
-        AUB = hll_estimate(hll_merge(counter1, counter2,false));
+	    if(counter2->b < 0){
+            counter2 = hll_decompress_opt(counter2);
+        } else if ( counter2->format == 0 ) {
+            counter2 = hll_unpack(counter2);
+        }
+
+
+        A = hll_estimate_opt(counter1);
+        B = hll_estimate_opt(counter2);
+        AUB = hll_estimate_opt(hll_merge_opt(counter1, counter2));
         PG_RETURN_FLOAT8(2*AUB - A - B);
     }
 

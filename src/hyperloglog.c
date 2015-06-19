@@ -84,6 +84,8 @@ static HLLCounter hll_compress_dense(HLLCounter hloglog);
 static HLLCounter hll_compress_sparse(HLLCounter hloglog);
 static HLLCounter hll_decompress_dense(HLLCounter hloglog);
 static HLLCounter hll_decompress_sparse(HLLCounter hloglog);
+static HLLCounter hll_compress_dense_unpacked(HLLCounter hloglog);
+
 
 static int hll_get_size_sparse(double ndistinct, float error);
 
@@ -92,6 +94,40 @@ static double hll_estimate_dense_opt(HLLCounter hloglog);
 static HLLCounter sparse_to_dense_opt(HLLCounter hloglog);
 
 /* ---------------------- function definitions --------------------------- */
+
+HLLCounter
+hll_unpack(HLLCounter hloglog){
+
+	char entry;
+        int i, m;
+        HLLCounter htemp;
+	
+	if (hloglog->idx != -1){
+	     return hloglog;
+	}
+	if (hloglog->b < 0){
+	     return hll_decompress_opt(hloglog);
+	}
+        hloglog->format = 1;
+
+        /* allocate and zero an array large enough to hold all the decompressed
+        * bins */
+        m = POW2[hloglog->b];
+        htemp = palloc(sizeof(HLLData) + m);
+        memcpy(htemp, hloglog, sizeof(HLLData));
+
+	for(i=0; i < m; i++){
+	    HLL_DENSE_GET_REGISTER(entry,hloglog->data,i,hloglog->binbits);
+	    htemp->data[i] = entry;
+	}
+
+        hloglog = htemp;
+
+        /* set the varsize to the appropriate length  */
+        SET_VARSIZE(hloglog, sizeof(HLLData) + m);
+
+	return hloglog;
+}
 
 HLLCounter
 hll_merge_opt(HLLCounter counter1, HLLCounter counter2)
@@ -198,7 +234,6 @@ hll_estimate_opt(HLLCounter hloglog)
 static double
 hll_estimate_dense_opt(HLLCounter hloglog)
 {
-
 	double H = 0, E = 0;
 	int j, V = 0;
 	int m = POW2[hloglog->b];
@@ -271,6 +306,8 @@ sparse_to_dense_opt(HLLCounter hloglog)
 	if (hloglog->idx == -1){
 		return hloglog;
 	}
+	
+	hloglog->format = 1;
 
 	/* Sparse encoded counters are smaller than dense so new space needs to be
 	*  alloced */
@@ -353,6 +390,7 @@ hll_decompress_dense_opt(HLLCounter hloglog)
 	/* reset b to positive value for calcs and to indicate data is
 	* decompressed */
 	hloglog->b = -1 * (hloglog->b);
+	hloglog->format = 1;
 
 	/* allocate and zero an array large enough to hold all the decompressed
 	* bins */
@@ -406,6 +444,8 @@ hll_create(double ndistinct, float error)
 
     /* set the counter struct version */
     p->version = STRUCT_VERSION;
+
+    p->format = 0;
 
     /* what is the minimum number of bins to achieve the requested error rate?
      *  we'll increase this to the nearest power of two later */
@@ -1065,6 +1105,65 @@ hll_is_equal(HLLCounter counter1, HLLCounter counter2)
     return 1;
 }
 
+int
+hll_is_equal_opt(HLLCounter counter1, HLLCounter counter2)
+{
+
+    HLLCounter counter1copy,counter2copy;
+    uint32_t * sparse_data1, *sparse_data2;
+    int i, m = POW2[counter1->b];
+
+    /* check compatibility first */
+    if (counter1->b != counter2->b)
+        elog(ERROR, "index size (bit length) of estimators differs (%d != %d)", counter1->b, counter2->b);
+    else if (counter1->binbits != counter2->binbits)
+        elog(ERROR, "bin size of estimators differs (%d != %d)", counter1->binbits, counter2->binbits);
+
+    /* compare registers returning false on any difference */
+    if (counter1->idx == -1 && counter2->idx == -1){
+        for (i = 0; i < m; i++){
+            if (counter1->data[i] != counter2->data[i]){
+                return 0;
+            }
+        }
+    } else if (counter1->idx == -1) {
+        counter2copy = sparse_to_dense_opt(counter2);
+        for (i = 0; i < m; i++){
+            if (counter1->data[i] != counter2copy->data[i]){
+                return 0;
+            }
+        }
+    } else if (counter2->idx == -1) {
+        counter1copy = sparse_to_dense_opt(counter1);
+        for (i = 0; i < m; i++){
+            if (counter1copy->data[i] != counter2->data[i]){
+                return 0;
+            }
+        }
+    } else {
+        counter1copy = hll_copy(counter1);
+        counter2copy = hll_copy(counter2);
+        sparse_data1 = (uint32_t *) counter1copy->data;
+        sparse_data2 = (uint32_t *) counter2copy->data;
+
+        counter1copy->idx = dedupe((uint32_t *)counter1copy->data,counter1copy->idx);
+        counter2copy->idx = dedupe((uint32_t *)counter2copy->data,counter2copy->idx);
+
+        if (counter1copy->idx != counter2copy->idx){
+            return 0;
+        }
+
+        for (i=0; i < counter1copy->idx ; i++){
+            if (sparse_data1[i] != sparse_data2[i]){
+                return 0;
+            }
+        }
+
+    }
+
+    return 1;
+
+}
 /* Compress header function */
 HLLCounter
 hll_compress(HLLCounter hloglog)
@@ -1074,8 +1173,10 @@ hll_compress(HLLCounter hloglog)
         return hloglog;
     }
 
-    if (hloglog->idx == -1){
+    if (hloglog->idx == -1 && hloglog->format == 0){
         hloglog = hll_compress_dense(hloglog);
+    } else if (hloglog->idx == -1 && hloglog->format == 1){
+	hloglog = hll_compress_dense_unpacked(hloglog);
     } else {
         hloglog = hll_compress_sparse(hloglog);
     }
@@ -1150,6 +1251,60 @@ hll_compress_dense(HLLCounter hloglog)
 
     /* return the compressed counter */
     return hloglog;
+}
+
+/* Compresses dense encoded counters using lz compression */
+static HLLCounter
+hll_compress_dense_unpacked(HLLCounter hloglog)
+{
+	PGLZ_Header * dest;
+	int m;
+
+	/* make sure the dest struct has enough space for an unsuccessful
+	* compression and a 4 bytes of overflow since lz might not recognize its
+	* over until then preventing segfaults */
+	m = POW2[hloglog->b];
+	dest = malloc(m + sizeof(PGLZ_Header) + 4);
+	if (dest == NULL){
+		return 0;
+	}
+	if (dest == NULL)
+		ereport(ERROR,
+			(errcode(ERRCODE_OUT_OF_MEMORY),
+			 errmsg("out of memory"),
+			 errdetail("Failed on request of size %zu.", m + sizeof(PGLZ_Header) + 4)));
+
+
+	memset(dest, 0, m + sizeof(PGLZ_Header) + 4);
+
+
+	/* lz_compress the normalized array and copy that data into hloglog->data
+	* if any compression was acheived */
+	pglz_compress(hloglog->data, m, dest, PGLZ_strategy_always);
+	if (VARSIZE(dest) >= (m * hloglog->binbits / 8)){
+		/* free allocated memory and return unaltered array */
+		if (dest){
+			free(dest);
+		}
+		return hloglog;
+	}
+	memcpy(hloglog->data, dest, VARSIZE(dest));
+
+	/* resize the counter to only encompass the compressed data and the struct
+	*  overhead*/
+	SET_VARSIZE(hloglog, sizeof(HLLData) + VARSIZE(dest));
+
+	/* invert the b value so it being < 0 can be used as a compression flag */
+	hloglog->b = -1 * (hloglog->b);
+	hloglog->format = 0;
+
+	/* free allocated memory */
+	if (dest){
+		free(dest);
+	}
+
+	/* return the compressed counter */
+	return hloglog;
 }
 
 /* Sparse compression uses group-varint encoding on a list of deltas made from

@@ -100,7 +100,11 @@ typedef struct HLLData {
 
     /* Used to indicate the version of the struct to allow further
      * modification in the future */
-    uint16_t version;
+    uint8_t version;
+
+    /* Used to specify the format of the counter (currently 0 - bitpacked
+     * 1 - unpacked */
+    uint8_t format; 
    
     /* The current index of the sparse encoded data array. Also when -1 used
      * as a flag for dense encoded counters */
@@ -147,6 +151,8 @@ void hll_reset_internal(HLLCounter hloglog);
 /* data compression/decompression */
 HLLCounter hll_compress(HLLCounter hloglog);
 HLLCounter hll_decompress(HLLCounter hloglog);
+HLLCounter hll_unpack(HLLCounter hloglog);
+int hll_is_equal_opt(HLLCounter counter1, HLLCounter counter2);
 
 HLLCounter hll_merge_opt(HLLCounter counter1, HLLCounter counter2);
 double hll_estimate_opt(HLLCounter hloglog);
