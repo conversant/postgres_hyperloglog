@@ -137,7 +137,7 @@ HLLCounter hll_copy(HLLCounter counter);
 
 /* Merges two counters into one. The final counter can either be a modified 
  * counter1 or completely new copy. */
-HLLCounter hll_merge(HLLCounter counter1, HLLCounter counter2, short inplace);
+HLLCounter hll_merge(HLLCounter counter1, HLLCounter counter2);
 
 /* add element existence */
 HLLCounter hll_add_element(HLLCounter hloglog, const char * element, int elen);
@@ -152,10 +152,5 @@ void hll_reset_internal(HLLCounter hloglog);
 HLLCounter hll_compress(HLLCounter hloglog);
 HLLCounter hll_decompress(HLLCounter hloglog);
 HLLCounter hll_unpack(HLLCounter hloglog);
-int hll_is_equal_opt(HLLCounter counter1, HLLCounter counter2);
-
-HLLCounter hll_merge_opt(HLLCounter counter1, HLLCounter counter2);
-double hll_estimate_opt(HLLCounter hloglog);
-HLLCounter hll_decompress_opt(HLLCounter hloglog);
 
 #endif // #ifndef _HYPERLOGLOG_H_

@@ -108,17 +108,17 @@ CREATE OR REPLACE FUNCTION hyperloglog_init(error_rate real,ndistinct double pre
 
 -- merges the second estimator into a copy of the first one
 CREATE OR REPLACE FUNCTION hyperloglog_merge(estimator1 hyperloglog_estimator, estimator2 hyperloglog_estimator) RETURNS hyperloglog_estimator
-     AS '$libdir/hyperloglog_counter', 'hyperloglog_merge_simple'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_merge'
      LANGUAGE C IMMUTABLE;
 COMMENT ON FUNCTION hyperloglog_merge(estimator1 hyperloglog_estimator, estimator2 hyperloglog_estimator) IS 'Merge two seperate hyperloglog_estimators into one. This varies from the aggregate hyperloglog_merge since it merges columns together instead of rows.';
 
 -- merges (inplace) the second estimator into the first one
 CREATE OR REPLACE FUNCTION hyperloglog_merge_agg(estimator1 hyperloglog_estimator, estimator2 hyperloglog_estimator) RETURNS hyperloglog_estimator
-     AS '$libdir/hyperloglog_counter', 'hyperloglog_merge_agg'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_merge'
      LANGUAGE C IMMUTABLE;
 
-CREATE OR REPLACE FUNCTION hyperloglog_merge_agg_opt(estimator1 hyperloglog_estimator, estimator2 hyperloglog_estimator) RETURNS hyperloglog_estimator
-     AS '$libdir/hyperloglog_counter', 'hyperloglog_merge_agg_opt'
+CREATE OR REPLACE FUNCTION hyperloglog_merge_unsafe(estimator1 hyperloglog_estimator, estimator2 hyperloglog_estimator) RETURNS hyperloglog_estimator
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_merge_unsafe'
      LANGUAGE C IMMUTABLE;
 
 
@@ -132,11 +132,6 @@ CREATE OR REPLACE FUNCTION hyperloglog_get_estimate(counter hyperloglog_estimato
      AS '$libdir/hyperloglog_counter', 'hyperloglog_get_estimate'
      LANGUAGE C STRICT IMMUTABLE;
 COMMENT ON FUNCTION hyperloglog_get_estimate(counter hyperloglog_estimator) IS 'Estimates the cardinality of the provided hyperloglog_estimator';
-
-CREATE OR REPLACE FUNCTION hyperloglog_get_estimate_opt(counter hyperloglog_estimator) RETURNS double precision
-     AS '$libdir/hyperloglog_counter', 'hyperloglog_get_estimate_opt'
-     LANGUAGE C STRICT IMMUTABLE;
-
 
 -- reset the estimator (start counting from the beginning)
 CREATE OR REPLACE FUNCTION hyperloglog_reset(counter hyperloglog_estimator) RETURNS void
@@ -334,10 +329,10 @@ COMMENT ON AGGREGATE hyperloglog_accum(anyelement) IS 'Accumulates anyelement in
 DROP AGGREGATE IF EXISTS sum_unsafe(hyperloglog_estimator);
 CREATE AGGREGATE sum_unsafe(hyperloglog_estimator)
 (
-    sfunc = hyperloglog_merge_agg_opt,
+    sfunc = hyperloglog_merge_unsafe,
     stype = hyperloglog_estimator,
-    prefunc = hyperloglog_merge_agg_opt,
-    finalfunc = hyperloglog_get_estimate_opt
+    prefunc = hyperloglog_merge_unsafe,
+    finalfunc = hyperloglog_get_estimate_bigint
 );
 COMMENT ON AGGREGATE sum_unsafe(hyperloglog_estimator) IS 'An optimized version of the sum(hyperloglog_estimator) aggregate that does not support use repeated use in the same SELECT statement or in UNION/UNION ALL queries';
 

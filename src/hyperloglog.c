@@ -79,19 +79,18 @@ static HLLCounter hll_add_hash_dense(HLLCounter hloglog, uint64_t hash);
 static HLLCounter hll_add_hash_sparse(HLLCounter hloglog, uint64_t hash);
 static uint32_t encode_hash(uint64_t hash, HLLCounter hloglog);
 static HLLCounter sparse_to_dense(HLLCounter hloglog);
+static HLLCounter sparse_to_dense_unpacked(HLLCounter hloglog);
 
 static HLLCounter hll_compress_dense(HLLCounter hloglog);
 static HLLCounter hll_compress_sparse(HLLCounter hloglog);
-static HLLCounter hll_decompress_dense(HLLCounter hloglog);
-static HLLCounter hll_decompress_sparse(HLLCounter hloglog);
 static HLLCounter hll_compress_dense_unpacked(HLLCounter hloglog);
-
+static HLLCounter hll_decompress_unpacked(HLLCounter hloglog);
+static HLLCounter hll_decompress_dense(HLLCounter hloglog);
+static HLLCounter hll_decompress_dense_unpacked(HLLCounter hloglog);
+static HLLCounter hll_decompress_sparse(HLLCounter hloglog);
 
 static int hll_get_size_sparse(double ndistinct, float error);
 
-static HLLCounter hll_decompress_dense_opt(HLLCounter hloglog);
-static double hll_estimate_dense_opt(HLLCounter hloglog);
-static HLLCounter sparse_to_dense_opt(HLLCounter hloglog);
 
 /* ---------------------- function definitions --------------------------- */
 
@@ -99,269 +98,47 @@ HLLCounter
 hll_unpack(HLLCounter hloglog){
 
 	char entry;
-        int i, m;
-        HLLCounter htemp;
+    int i, m;
+    HLLCounter htemp;
 	
-	if (hloglog->idx != -1){
-	     return hloglog;
-	}
+	/* use decompress to handle compressed unpacking */
 	if (hloglog->b < 0){
-	     return hll_decompress_opt(hloglog);
+	     return hll_decompress_unpacked(hloglog);
 	}
-        hloglog->format = 1;
 
-        /* allocate and zero an array large enough to hold all the decompressed
-        * bins */
-        m = POW2[hloglog->b];
-        htemp = palloc(sizeof(HLLData) + m);
-        memcpy(htemp, hloglog, sizeof(HLLData));
+	/* sparse estimators are unpacked */
+	if (hloglog->idx != -1){
+		return hloglog;
+	}
+
+	/* set format to unpacked*/
+    hloglog->format = 1;
+
+    /* allocate and zero an array large enough to hold all the decompressed
+    * bins */
+    m = POW2[hloglog->b];
+    htemp = palloc(sizeof(HLLData) + m);
+    memcpy(htemp, hloglog, sizeof(HLLData));
 
 	for(i=0; i < m; i++){
 	    HLL_DENSE_GET_REGISTER(entry,hloglog->data,i,hloglog->binbits);
 	    htemp->data[i] = entry;
 	}
 
-        hloglog = htemp;
+    hloglog = htemp;
 
-        /* set the varsize to the appropriate length  */
-        SET_VARSIZE(hloglog, sizeof(HLLData) + m);
-
-	return hloglog;
-}
-
-HLLCounter
-hll_merge_opt(HLLCounter counter1, HLLCounter counter2)
-{
-
-	int i;
-	HLLCounter result = counter1;
-	uint8_t rho;
-	uint32_t * sparse_data, *sparse_data_result, idx;
-	int upper_bound = POW2[result->b];
-
-	/* check compatibility first */
-	//if (counter1->b != counter2->b && -1*counter1->b != counter2->b)
-	//elog(ERROR, "index size of estimators differs (%d != %d)", counter1->b, counter2->b);
-	//else if (counter1->binbits != counter2->binbits)
-	//elog(ERROR, "bin size of estimators differs (%d != %d)", counter1->binbits, counter2->binbits);
-
-
-	/* Keep the maximum register value for each bin */
-	if (result->idx == -1 && counter2->idx == -1){
-		for (i = 0; i < upper_bound; i += 1){
-
-			result->data[i] = ((counter2->data[i] > result->data[i]) ? counter2->data[i] : result->data[i]);
-
-		}
-	}
-	else if (result->idx == -1) {
-		sparse_data = (uint32_t *)counter2->data;
-
-		/* First the encoded hash must be converted to idx and rho before it
-		* can be added to the densely encoded result counter */
-		for (i = 0; i < counter2->idx; i++){
-			idx = sparse_data[i];
-
-			/* if last bit is 1 then rho is the preceding ~6 bits
-			* otherwise rho can be calculated from the leading bits*/
-			if (sparse_data[i] & 1) {
-				/* grab the binbits before the indicator bit and add that to
-				* the number of zero bits in p-p' */
-				idx = idx >> (32 - result->b);
-				rho = ((sparse_data[i] & (int)(POW2[result->binbits + 1] - 2)) >> 1) + (32 - 1 - result->b - result->binbits);
-			}
-			else {
-				idx = (idx << result->binbits) >> result->binbits;
-				idx = idx >> (32 - (result->binbits + result->b));
-				rho = __builtin_clz(sparse_data[i] << (result->binbits + result->b)) + 1;
-			}
-
-			/* keep the highest value */
-			if (rho > result->data[idx]) {
-				result->data[idx] = rho;
-			}
-
-		}
-	}
-	else if (counter2->idx == -1) {
-
-		result = sparse_to_dense_opt(result);
-		for (i = 0; i < upper_bound; i += 1){
-
-			result->data[i] = ((counter2->data[i] > result->data[i]) ? counter2->data[i] : result->data[i]);
-
-		}
-	}
-	else {
-		sparse_data = (uint32_t *)counter2->data;
-		sparse_data_result = (uint32_t *)result->data;
-
-		/* Add encoded hashes just like in add_hash_sparse with the same
-		* dedupe before promotion logic. */
-		for (i = 0; i < counter2->idx; i++){
-			sparse_data_result[result->idx++] = sparse_data[i];
-
-			if (result->idx > size_sparse_array(result->b)) {
-				result->idx = dedupe((uint32_t *)result->data, result->idx);
-				if (result->idx > size_sparse_array(result->b) * (7.0 / 8)) {
-					result = sparse_to_dense_opt(result);
-					result = hll_merge_opt(result, counter2);
-					return result;
-				}
-			}
-		}
-
-	}
-
-	return result;
-
-}
-
-double
-hll_estimate_opt(HLLCounter hloglog)
-{
-    double E = 0;
-    
-    if (hloglog->idx == -1){
-        E = hll_estimate_dense_opt(hloglog);
-    } else {
-        E = hll_estimate_sparse(hloglog);
-    }
-
-    return E;
-}
-
-static double
-hll_estimate_dense_opt(HLLCounter hloglog)
-{
-	double H = 0, E = 0;
-	int j, V = 0;
-	int m = POW2[hloglog->b];
-
-	/* compute the sum for the harmonic mean */
-	if (hloglog->binbits <= MAX_PRECOMPUTED_EXPONENTS_BINWIDTH){
-		for (j = 0; j < m; j++){
-			H += PE[(int)hloglog->data[j]];
-		}
-	}
-	else {
-		for (j = 0; j < m; j++){
-			if (0 <= hloglog->data[j] && hloglog->data[j] < NUM_OF_PRECOMPUTED_EXPONENTS){
-				H += PE[(int)hloglog->data[j]];
-			}
-			else {
-				H += pow(0.5, hloglog->data[j]);
-			}
-		}
-	}
-
-	/* multiple by constants to turn the mean into an estimate */
-	E = alpham[hloglog->b] / H;
-
-	/* correct for hyperloglog's low cardinality bias by either using linear
-	*  counting or error estimation */
-	if (E <= (5.0 * m)) {
-
-		/* account for hloglog low cardinality bias */
-		E = E - error_estimate(E, hloglog->b);
-
-		/* search for empty registers for linear counting */
-		for (j = 0; j < m; j++){
-			if (hloglog->data[j] == 0){
-				V += 1;
-			}
-		}
-
-		/* Don't use linear counting if there are no empty registers since we
-		* don't to divide by 0 */
-		if (V != 0){
-			H = m * log(m / (float)V);
-		}
-		else {
-			H = E;
-		}
-
-		/* if the estimated cardinality is below the threshold for a specific
-		* accuracy return the linear counting result otherwise use the error
-		* corrected version */
-		if (H <= threshold[hloglog->b]) {
-			E = H;
-		}
-
-	}
-
-	return E;
-
-}
-
-static HLLCounter
-sparse_to_dense_opt(HLLCounter hloglog)
-{
-	HLLCounter htemp;
-	uint32_t * sparse_data;
-	uint32_t idx;
-	uint8_t rho;
-	int i, m = POW2[hloglog->b];
-
-	if (hloglog->idx == -1){
-		return hloglog;
-	}
-	
-	hloglog->format = 1;
-
-	/* Sparse encoded counters are smaller than dense so new space needs to be
-	*  alloced */
-	sparse_data = malloc(hloglog->idx*sizeof(uint32_t));
-	if (sparse_data == NULL)
-        	ereport(ERROR,
-                (errcode(ERRCODE_OUT_OF_MEMORY),
-                 errmsg("out of memory"),
-                 errdetail("Failed on request of size %zu.", hloglog->idx*sizeof(uint32_t))));
-
-	memmove(sparse_data, &hloglog->data, hloglog->idx*sizeof(uint32_t));
-	htemp = palloc0(sizeof(HLLData) + m);
-	memcpy(htemp, hloglog, sizeof(HLLData));
-	hloglog = htemp;
-	memset(hloglog->data, 0, m);
-	int maxidx = hloglog->idx;
-
-	for (i = 0; i < maxidx; i++){
-		idx = sparse_data[i];
-
-		/* if last bit is 1 then rho is the preceding ~6 bits
-		* otherwise rho can be calculated from the leading bits*/
-		if (sparse_data[i] & 1) {
-			/* grab the binbits before the indicator bit and add that to the
-			* number of zero bits in p-p' */
-			idx = idx >> (32 - hloglog->b);
-			rho = ((sparse_data[i] & (int)(POW2[ hloglog->binbits + 1] - 2)) >> 1) + (32 - 1 - hloglog->b - hloglog->binbits);
-		}
-		else {
-			idx = (idx << hloglog->binbits) >> hloglog->binbits;
-			idx = idx >> (32 - (hloglog->binbits + hloglog->b));
-			rho = __builtin_clz(sparse_data[i] << (hloglog->binbits + hloglog->b)) + 1;
-		}
-
-		/* keep the highest value */
-		if (rho > hloglog->data[idx]) {
-			hloglog->data[idx] = rho;
-		}
-
-	}
-
-	if (sparse_data){
-		free(sparse_data);
-	}
-
-	SET_VARSIZE(hloglog, sizeof(HLLData) + m);
-
-	hloglog->idx = -1;
+    /* set the varsize to the appropriate length  */
+    SET_VARSIZE(hloglog, sizeof(HLLData) + m);
 
 	return hloglog;
 }
 
+
+
+
+
 HLLCounter
-hll_decompress_opt(HLLCounter hloglog)
+hll_decompress_unpacked(HLLCounter hloglog)
 {
 	/* make sure the data is compressed */
 	if (hloglog->b > 0) {
@@ -369,9 +146,8 @@ hll_decompress_opt(HLLCounter hloglog)
 	}
 
 	if (hloglog->idx == -1){
-		hloglog = hll_decompress_dense_opt(hloglog);
-	}
-	else {
+		hloglog = hll_decompress_dense_unpacked(hloglog);
+	} else {
 		hloglog = hll_decompress_sparse(hloglog);
 	}
 
@@ -381,7 +157,7 @@ hll_decompress_opt(HLLCounter hloglog)
 
 /* Decompresses sparse counters */
 static HLLCounter
-hll_decompress_dense_opt(HLLCounter hloglog)
+hll_decompress_dense_unpacked(HLLCounter hloglog)
 {
 	//char * dest;
 	int m;
@@ -445,6 +221,7 @@ hll_create(double ndistinct, float error)
     /* set the counter struct version */
     p->version = STRUCT_VERSION;
 
+	/* set the format to 0 for bitpacked*/
     p->format = 0;
 
     /* what is the minimum number of bins to achieve the requested error rate?
@@ -497,96 +274,90 @@ hll_copy(HLLCounter counter)
  * of bins, bin size, ...). If the counters don't match, this throws an ERROR.
  *  */
 HLLCounter
-hll_merge(HLLCounter counter1, HLLCounter counter2, short inplace)
+hll_merge(HLLCounter counter1, HLLCounter counter2)
 {
 
-    int i;
-    HLLCounter result;
-    uint8_t resultcount, countercount,rho,entry;
-    uint32_t * sparse_data, * sparse_data_result,idx;
-    
-    /* check compatibility first */
-    if (counter1->b != counter2->b && -1*counter1->b != counter2->b)
-        elog(ERROR, "index size of estimators differs (%d != %d)", counter1->b, counter2->b);
-    else if (counter1->binbits != counter2->binbits)
-        elog(ERROR, "bin size of estimators differs (%d != %d)", counter1->binbits, counter2->binbits);
+	int i;
+	HLLCounter result = counter1;
+	uint8_t rho;
+	uint32_t * sparse_data, *sparse_data_result, idx;
+	int upper_bound = POW2[result->b];
 
-    /* shall we create a new estimator, or merge into counter1 */
-    if (! inplace)
-        result = hll_copy(counter1);
-    else
-        result = counter1;
+	/* check compatibility first */
+	//if (counter1->b != counter2->b && -1*counter1->b != counter2->b)
+	//elog(ERROR, "index size of estimators differs (%d != %d)", counter1->b, counter2->b);
+	//else if (counter1->binbits != counter2->binbits)
+	//elog(ERROR, "bin size of estimators differs (%d != %d)", counter1->binbits, counter2->binbits);
 
-    /* Keep the maximum register value for each bin */
-    if (result->idx == -1 && counter2->idx == -1){
-        for (i = 0; i < POW2[ result->b]; i++){
-            HLL_DENSE_GET_REGISTER(resultcount,result->data,i,result->binbits);
-            HLL_DENSE_GET_REGISTER(countercount,counter2->data,i,counter2->binbits);
-            if (resultcount < countercount) {
-                HLL_DENSE_SET_REGISTER(result->data,i,countercount,result->binbits);
-            }
-        }
-    } else if (result->idx == -1) {
-        sparse_data = (uint32_t *) counter2->data;
-        
-        /* First the encoded hash must be converted to idx and rho before it 
-         * can be added to the densely encoded result counter */
-        for (i=0; i < counter2->idx; i++){
-            idx = sparse_data[i];
-            
-            /* if last bit is 1 then rho is the preceding ~6 bits
-             * otherwise rho can be calculated from the leading bits*/
-            if (sparse_data[i] & 1) {
-                /* grab the binbits before the indicator bit and add that to
-                 * the number of zero bits in p-p' */
-                idx = idx >> (32 - result->b);
-                rho = ((sparse_data[i] & (int)(POW2[result->binbits+1] - 2)) >> 1) + (32 - 1 - result->b - result->binbits);
-            } else {
-                idx = (idx << result->binbits) >> result->binbits;
-                idx  = idx >> (32 - (result->binbits+ result->b));
-                rho = __builtin_clz(sparse_data[i] << (result->binbits+ result->b)) + 1;
-            }
-            
-            /* keep the highest value */
-            HLL_DENSE_GET_REGISTER(entry,result->data,idx,result->binbits);
-            if (rho > entry) {
-                HLL_DENSE_SET_REGISTER(result->data,idx,rho,result->binbits);
-            }
- 
-         }
-    } else if (counter2->idx == -1) {
 
-        result = sparse_to_dense(result);
-        for (i = 0; i < POW2[ result->b]; i++){
-            HLL_DENSE_GET_REGISTER(resultcount,result->data,i,result->binbits);
-            HLL_DENSE_GET_REGISTER(countercount,counter2->data,i,counter2->binbits);
-            if (resultcount < countercount) {
-                HLL_DENSE_SET_REGISTER(result->data,i,countercount,result->binbits);
-            }
-        }
-    } else {
-        
-        sparse_data = (uint32_t *) counter2->data;
-        sparse_data_result = (uint32_t *) result->data;
-        
-        /* Add encoded hashes just like in add_hash_sparse with the same
-         * dedupe before promotion logic. */
-        for (i=0; i < counter2->idx; i++){
-            sparse_data_result[result->idx++] = sparse_data[i];
-            
-            if (result->idx > size_sparse_array(result->b)) {
-                result->idx = dedupe((uint32_t *)result->data,result->idx);
-                if (result->idx > size_sparse_array(result->b) * (7.0/8)) {
-                    result = sparse_to_dense(result);
-                    result = hll_merge(result,counter2,1);
-                    return result;
-                }
-            }
-        }
+	/* Keep the maximum register value for each bin */
+	if (result->idx == -1 && counter2->idx == -1){
+		for (i = 0; i < upper_bound; i += 1){
 
-    }
+			result->data[i] = ((counter2->data[i] > result->data[i]) ? counter2->data[i] : result->data[i]);
 
-    return result;
+		}
+	}
+	else if (result->idx == -1) {
+		sparse_data = (uint32_t *)counter2->data;
+
+		/* First the encoded hash must be converted to idx and rho before it
+		* can be added to the densely encoded result counter */
+		for (i = 0; i < counter2->idx; i++){
+			idx = sparse_data[i];
+
+			/* if last bit is 1 then rho is the preceding ~6 bits
+			* otherwise rho can be calculated from the leading bits*/
+			if (sparse_data[i] & 1) {
+				/* grab the binbits before the indicator bit and add that to
+				* the number of zero bits in p-p' */
+				idx = idx >> (32 - result->b);
+				rho = ((sparse_data[i] & (int)(POW2[result->binbits + 1] - 2)) >> 1) + (32 - 1 - result->b - result->binbits);
+			}
+			else {
+				idx = (idx << result->binbits) >> result->binbits;
+				idx = idx >> (32 - (result->binbits + result->b));
+				rho = __builtin_clz(sparse_data[i] << (result->binbits + result->b)) + 1;
+			}
+
+			/* keep the highest value */
+			if (rho > result->data[idx]) {
+				result->data[idx] = rho;
+			}
+
+		}
+	}
+	else if (counter2->idx == -1) {
+
+		result = sparse_to_dense_unpacked(result);
+		for (i = 0; i < upper_bound; i += 1){
+
+			result->data[i] = ((counter2->data[i] > result->data[i]) ? counter2->data[i] : result->data[i]);
+
+		}
+	}
+	else {
+		sparse_data = (uint32_t *)counter2->data;
+		sparse_data_result = (uint32_t *)result->data;
+
+		/* Add encoded hashes just like in add_hash_sparse with the same
+		* dedupe before promotion logic. */
+		for (i = 0; i < counter2->idx; i++){
+			sparse_data_result[result->idx++] = sparse_data[i];
+
+			if (result->idx > size_sparse_array(result->b)) {
+				result->idx = dedupe((uint32_t *)result->data, result->idx);
+				if (result->idx > size_sparse_array(result->b) * (7.0 / 8)) {
+					result = sparse_to_dense_unpacked(result);
+					result = hll_merge_opt(result, counter2);
+					return result;
+				}
+			}
+		}
+
+	}
+
+	return result;
 
 }
 
@@ -654,11 +425,11 @@ hll_estimate(HLLCounter hloglog)
 {
     double E = 0;
     
-    if (hloglog->idx == -1){
-        E = hll_estimate_dense(hloglog);
-    } else {
-        E = hll_estimate_sparse(hloglog);
-    }
+	if (hloglog->idx == -1 && hloglog->format == 1){
+		E = hll_estimate_dense(hloglog);
+	} else {
+		E = hll_estimate_sparse(hloglog);
+	}
 
     return E;
 }
@@ -672,70 +443,69 @@ hll_estimate(HLLCounter hloglog)
  * 3) corrects the estimate for low values
  * 
  */
-static double 
+static double
 hll_estimate_dense(HLLCounter hloglog)
 {
+	double H = 0, E = 0;
+	int j, V = 0;
+	int m = POW2[hloglog->b];
 
-    double H = 0, E = 0;
-    int j, V=0;
-    uint8_t entry;
-    int m = POW2[hloglog->b];
+	/* compute the sum for the harmonic mean */
+	if (hloglog->binbits <= MAX_PRECOMPUTED_EXPONENTS_BINWIDTH){
+		for (j = 0; j < m; j++){
+			H += PE[(int)hloglog->data[j]];
+		}
+	}
+	else {
+		for (j = 0; j < m; j++){
+			if (0 <= hloglog->data[j] && hloglog->data[j] < NUM_OF_PRECOMPUTED_EXPONENTS){
+				H += PE[(int)hloglog->data[j]];
+			}
+			else {
+				H += pow(0.5, hloglog->data[j]);
+			}
+		}
+	}
 
-    /* compute the sum for the harmonic mean */
-    if ( hloglog->binbits > MAX_PRECOMPUTED_EXPONENTS_BINWIDTH ){
-    	for (j = 0; j < m; j++){
-            HLL_DENSE_GET_REGISTER(entry,hloglog->data,j,hloglog->binbits);
-            H += PE[entry];
-    	}
-    } else {
-        for (j = 0; j < m; j++){
-            HLL_DENSE_GET_REGISTER(entry,hloglog->data,j,hloglog->binbits);
-            if (entry < NUM_OF_PRECOMPUTED_EXPONENTS){
-                H += PE[entry];
-            } else {
-                H += pow(0.5,entry);
-            }
-        }
-    }
+	/* multiple by constants to turn the mean into an estimate */
+	E = alpham[hloglog->b] / H;
 
-    /* multiple by constants to turn the mean into an estimate */
-    E = alpham[hloglog->b] / H;
+	/* correct for hyperloglog's low cardinality bias by either using linear
+	*  counting or error estimation */
+	if (E <= (5.0 * m)) {
 
-    /* correct for hyperloglog's low cardinality bias by either using linear
-     *  counting or error estimation */
-    if (E <= (5.0 * m)) {
-	
-	    /* account for hloglog low cardinality bias */    
-	    E = E - error_estimate(E,hloglog->b);
+		/* account for hloglog low cardinality bias */
+		E = E - error_estimate(E, hloglog->b);
 
-        /* search for empty registers for linear counting */
-        for (j = 0; j < m; j++){
-            HLL_DENSE_GET_REGISTER(entry,hloglog->data,j,hloglog->binbits);
-            if (entry == 0){
-                V += 1;
-            }
-        }
+		/* search for empty registers for linear counting */
+		for (j = 0; j < m; j++){
+			if (hloglog->data[j] == 0){
+				V += 1;
+			}
+		}
 
-        /* Don't use linear counting if there are no empty registers since we 
-         * don't to divide by 0 */
-        if (V != 0){
-            H = m * log(m / (float)V);
-        } else {
-            H = E;
-        }
+		/* Don't use linear counting if there are no empty registers since we
+		* don't to divide by 0 */
+		if (V != 0){
+			H = m * log(m / (float)V);
+		}
+		else {
+			H = E;
+		}
 
-        /* if the estimated cardinality is below the threshold for a specific 
-         * accuracy return the linear counting result otherwise use the error
-         * corrected version */
-        if (H <= threshold[hloglog->b]) {
-            E = H;
-        }
+		/* if the estimated cardinality is below the threshold for a specific
+		* accuracy return the linear counting result otherwise use the error
+		* corrected version */
+		if (H <= threshold[hloglog->b]) {
+			E = H;
+		}
 
-    }
+	}
 
-    return E;
+	return E;
 
 }
+
 
 /* Estimates the error from hyperloglog's low cardinality bias and by taking
  * a simple linear regression of the nearest 6 points */
@@ -1028,6 +798,72 @@ sparse_to_dense(HLLCounter hloglog)
     return hloglog;
 }
 
+static HLLCounter
+sparse_to_dense_unpacked(HLLCounter hloglog)
+{
+	HLLCounter htemp;
+	uint32_t * sparse_data;
+	uint32_t idx;
+	uint8_t rho;
+	int i, m = POW2[hloglog->b];
+
+	if (hloglog->idx == -1){
+		return hloglog;
+	}
+
+	hloglog->format = 1;
+
+	/* Sparse encoded counters are smaller than dense so new space needs to be
+	*  alloced */
+	sparse_data = malloc(hloglog->idx*sizeof(uint32_t));
+	if (sparse_data == NULL)
+		ereport(ERROR,
+		(errcode(ERRCODE_OUT_OF_MEMORY),
+		errmsg("out of memory"),
+		errdetail("Failed on request of size %zu.", hloglog->idx*sizeof(uint32_t))));
+
+	memmove(sparse_data, &hloglog->data, hloglog->idx*sizeof(uint32_t));
+	htemp = palloc0(sizeof(HLLData) + m);
+	memcpy(htemp, hloglog, sizeof(HLLData));
+	hloglog = htemp;
+	memset(hloglog->data, 0, m);
+	int maxidx = hloglog->idx;
+
+	for (i = 0; i < maxidx; i++){
+		idx = sparse_data[i];
+
+		/* if last bit is 1 then rho is the preceding ~6 bits
+		* otherwise rho can be calculated from the leading bits*/
+		if (sparse_data[i] & 1) {
+			/* grab the binbits before the indicator bit and add that to the
+			* number of zero bits in p-p' */
+			idx = idx >> (32 - hloglog->b);
+			rho = ((sparse_data[i] & (int)(POW2[hloglog->binbits + 1] - 2)) >> 1) + (32 - 1 - hloglog->b - hloglog->binbits);
+		}
+		else {
+			idx = (idx << hloglog->binbits) >> hloglog->binbits;
+			idx = idx >> (32 - (hloglog->binbits + hloglog->b));
+			rho = __builtin_clz(sparse_data[i] << (hloglog->binbits + hloglog->b)) + 1;
+		}
+
+		/* keep the highest value */
+		if (rho > hloglog->data[idx]) {
+			hloglog->data[idx] = rho;
+		}
+
+	}
+
+	if (sparse_data){
+		free(sparse_data);
+	}
+
+	SET_VARSIZE(hloglog, sizeof(HLLData) + m);
+
+	hloglog->idx = -1;
+
+	return hloglog;
+}
+
 /* Just reset the counter (set all the counters to 0). We do this by
  * zeroing the data array */
 void 
@@ -1039,74 +875,8 @@ hll_reset_internal(HLLCounter hloglog)
 }
 
 /* check the equality by comparing the register values not the cardinalities */
-int 
-hll_is_equal(HLLCounter counter1, HLLCounter counter2)
-{
-   
-    uint8_t entry1,entry2;
-    HLLCounter counter1copy,counter2copy;
-    uint32_t * sparse_data1, *sparse_data2;
-    int i, m = POW2[counter1->b]; 
-
-    /* check compatibility first */
-    if (counter1->b != counter2->b)
-        elog(ERROR, "index size (bit length) of estimators differs (%d != %d)", counter1->b, counter2->b);
-    else if (counter1->binbits != counter2->binbits)
-        elog(ERROR, "bin size of estimators differs (%d != %d)", counter1->binbits, counter2->binbits);
-
-    /* compare registers returning false on any difference */
-    if (counter1->idx == -1 && counter2->idx == -1){
-        for (i = 0; i < m; i++){
-            HLL_DENSE_GET_REGISTER(entry1,counter1->data,i,counter1->binbits);
-            HLL_DENSE_GET_REGISTER(entry2,counter2->data,i,counter2->binbits);
-            if (entry1 != entry2){
-                return 0;
-            }
-        }
-    } else if (counter1->idx == -1) {
-        counter2copy = sparse_to_dense(counter2);
-        for (i = 0; i < m; i++){
-            HLL_DENSE_GET_REGISTER(entry1,counter1->data,i,counter1->binbits);
-            HLL_DENSE_GET_REGISTER(entry2,counter2copy->data,i,counter2copy->binbits);
-            if (entry1 != entry2){
-                return 0;
-            }
-        }
-    } else if (counter2->idx == -1) {
-        counter1copy = sparse_to_dense(counter1);
-        for (i = 0; i < m; i++){
-            HLL_DENSE_GET_REGISTER(entry1,counter1copy->data,i,counter1copy->binbits);
-            HLL_DENSE_GET_REGISTER(entry2,counter2->data,i,counter2->binbits);
-            if (entry1 != entry2){
-                return 0;
-            }
-        }
-    } else {
-        counter1copy = hll_copy(counter1);
-        counter2copy = hll_copy(counter2);
-        sparse_data1 = (uint32_t *) counter1copy->data;
-        sparse_data2 = (uint32_t *) counter2copy->data;
-
-        counter1copy->idx = dedupe((uint32_t *)counter1copy->data,counter1copy->idx);
-        counter2copy->idx = dedupe((uint32_t *)counter2copy->data,counter2copy->idx);
- 
-        if (counter1copy->idx != counter2copy->idx){
-            return 0;
-        }
-
-        for (i=0; i < counter1copy->idx ; i++){
-            if (sparse_data1[i] != sparse_data2[i]){
-                return 0;
-            }
-        }
-    
-    }
-
-    return 1;
-}
-
 int
-hll_is_equal_opt(HLLCounter counter1, HLLCounter counter2)
+hll_is_equal(HLLCounter counter1, HLLCounter counter2)
 {
 
     HLLCounter counter1copy,counter2copy;
@@ -1118,6 +888,8 @@ hll_is_equal_opt(HLLCounter counter1, HLLCounter counter2)
         elog(ERROR, "index size (bit length) of estimators differs (%d != %d)", counter1->b, counter2->b);
     else if (counter1->binbits != counter2->binbits)
         elog(ERROR, "bin size of estimators differs (%d != %d)", counter1->binbits, counter2->binbits);
+	else if (counter1->format != 1 || counter2->format != 1)
+		elog(ERROR, "Estimator(s) are not unpacked! (%d,%d)", counter1->format, counter2->format);
 
     /* compare registers returning false on any difference */
     if (counter1->idx == -1 && counter2->idx == -1){
@@ -1127,14 +899,14 @@ hll_is_equal_opt(HLLCounter counter1, HLLCounter counter2)
             }
         }
     } else if (counter1->idx == -1) {
-        counter2copy = sparse_to_dense_opt(counter2);
+        counter2copy = sparse_to_dense_unpacked(counter2);
         for (i = 0; i < m; i++){
             if (counter1->data[i] != counter2copy->data[i]){
                 return 0;
             }
         }
     } else if (counter2->idx == -1) {
-        counter1copy = sparse_to_dense_opt(counter1);
+        counter1copy = sparse_to_dense_unpacked(counter1);
         for (i = 0; i < m; i++){
             if (counter1copy->data[i] != counter2->data[i]){
                 return 0;
@@ -1176,7 +948,7 @@ hll_compress(HLLCounter hloglog)
     if (hloglog->idx == -1 && hloglog->format == 0){
         hloglog = hll_compress_dense(hloglog);
     } else if (hloglog->idx == -1 && hloglog->format == 1){
-	hloglog = hll_compress_dense_unpacked(hloglog);
+		hloglog = hll_compress_dense_unpacked(hloglog);
     } else {
         hloglog = hll_compress_sparse(hloglog);
     }
@@ -1374,7 +1146,7 @@ hll_decompress(HLLCounter hloglog)
     return hloglog;
 }
 
-/* Decompresses sparse counters */
+/* Decompresses dense counters */
 static HLLCounter
 hll_decompress_dense(HLLCounter hloglog)
 {
