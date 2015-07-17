@@ -31,8 +31,11 @@ PG_MODULE_MAGIC;
 /* Use the PG_FUNCTION_INFO_V! macro to pass functions to postgres */
 PG_FUNCTION_INFO_V1(hyperloglog_add_item);
 PG_FUNCTION_INFO_V1(hyperloglog_add_item_agg);
+PG_FUNCTION_INFO_V1(hyperloglog_add_item_agg_pack);
 PG_FUNCTION_INFO_V1(hyperloglog_add_item_agg_error);
+PG_FUNCTION_INFO_V1(hyperloglog_add_item_agg_error_pack);
 PG_FUNCTION_INFO_V1(hyperloglog_add_item_agg_default);
+PG_FUNCTION_INFO_V1(hyperloglog_add_item_agg_default_pack);
 
 PG_FUNCTION_INFO_V1(hyperloglog_merge);
 PG_FUNCTION_INFO_V1(hyperloglog_merge_unsafe);
@@ -71,8 +74,11 @@ PG_FUNCTION_INFO_V1(hyperloglog_unpack);
 /* ------------- function declarations for local functions --------------- */
 Datum hyperloglog_add_item(PG_FUNCTION_ARGS);
 Datum hyperloglog_add_item_agg(PG_FUNCTION_ARGS);
+Datum hyperloglog_add_item_agg_pack(PG_FUNCTION_ARGS);
 Datum hyperloglog_add_item_agg_error(PG_FUNCTION_ARGS);
+Datum hyperloglog_add_item_agg_error_pack(PG_FUNCTION_ARGS);
 Datum hyperloglog_add_item_agg_default(PG_FUNCTION_ARGS);
+Datum hyperloglog_add_item_agg_default_pack(PG_FUNCTION_ARGS);
 
 Datum hyperloglog_get_estimate(PG_FUNCTION_ARGS);
 Datum hyperloglog_merge(PG_FUNCTION_ARGS);
@@ -131,9 +137,7 @@ hyperloglog_unpack(PG_FUNCTION_ARGS)
 
     hyperloglog =  PG_GETARG_HLL_P_COPY(0);
     
-	if (hyperloglog->format == 0){
-		hyperloglog = hll_unpack(hyperloglog);
-	}
+    hyperloglog = hll_unpack(hyperloglog);
 
     PG_RETURN_BYTEA_P(hyperloglog);
 }
@@ -222,7 +226,7 @@ hyperloglog_add_item_agg(PG_FUNCTION_ARGS)
         if ((errorRate <= 0) || (errorRate > 1))
             elog(ERROR, "error rate has to be between 0 and 1");
 
-        hyperloglog = hll_create(ndistinct, errorRate);
+	hyperloglog = hll_create(ndistinct, errorRate, PACKED);
 
     } else { /* existing estimator */
         hyperloglog = PG_GETARG_HLL_P(0);
@@ -262,6 +266,85 @@ hyperloglog_add_item_agg(PG_FUNCTION_ARGS)
     PG_RETURN_BYTEA_P(hyperloglog);
 
 }
+
+
+Datum
+hyperloglog_add_item_agg_pack(PG_FUNCTION_ARGS)
+{
+
+    HLLCounter hyperloglog;
+    double ndistinct;
+    float errorRate; /* required error rate */
+
+    /* info for anyelement */
+    Oid         element_type = get_fn_expr_argtype(fcinfo->flinfo, 1);
+    Datum       element = PG_GETARG_DATUM(1);
+    int16       typlen;
+    bool        typbyval;
+    char        typalign;
+
+    /* Create a new estimator (with requested error rate and ndistinct) or
+ *      * reuse the existing one.  Return null if both counter and element args
+ *           * are null. This prevents excess empty counter creation */
+    if (PG_ARGISNULL(0) && PG_ARGISNULL(1)){
+        PG_RETURN_NULL();
+    } else if (PG_ARGISNULL(0) && !PG_ARGISNULL(1)) {
+
+        errorRate = PG_GETARG_FLOAT4(2);
+            ndistinct = PG_GETARG_FLOAT8(3);
+
+        /* error rate between 0 and 1 (not 0) */
+        if ((errorRate <= 0) || (errorRate > 1))
+            elog(ERROR, "error rate has to be between 0 and 1");
+
+        if (!PG_ARGISNULL(4) && ('u' == VARDATA(PG_GETARG_TEXT_P(4))[0] || 'U'  == VARDATA(PG_GETARG_TEXT_P(4))[0] )){
+            hyperloglog = hll_create(ndistinct, errorRate, PACKED_UNPACKED);
+        } else if (!PG_ARGISNULL(4) && ('p' == VARDATA(PG_GETARG_TEXT_P(4))[0] || 'P'  == VARDATA(PG_GETARG_TEXT_P(4))[0] ) ) {
+            hyperloglog = hll_create(ndistinct, errorRate, PACKED);
+        } else {
+            elog(ERROR,"ERROR: Improper format specification! Must be U or P");
+            PG_RETURN_NULL();
+        }
+
+    } else { /* existing estimator */
+        hyperloglog = PG_GETARG_HLL_P(0);
+    }
+
+    /* add the item to the estimator (skip NULLs) */
+    if (! PG_ARGISNULL(1)) {
+
+        /* TODO The requests for type info shouldn't be a problem (thanks to
+ *                  * lsyscache), but if it turns out to have a noticeable impact it's
+ *                                   * possible to cache that between the calls (in the estimator).
+ *                                                    *
+ *                                                                     * I have noticed no measurable effect from either option. */
+
+        /* get type information for the second parameter (anyelement item) */
+        get_typlenbyvalalign(element_type, &typlen, &typbyval, &typalign);
+
+                /* decompress if needed */
+        if(hyperloglog->b < 0){
+            hyperloglog = hll_decompress(hyperloglog);
+        }
+
+        /* it this a varlena type, passed by reference or by value ? */
+        if (typlen == -1) {
+            /* varlena */
+            hyperloglog = hll_add_element(hyperloglog, VARDATA_ANY(element), VARSIZE_ANY_EXHDR(element));
+        } else if (typbyval) {
+            /* fixed-length, passed by value */
+            hyperloglog = hll_add_element(hyperloglog, (char*)&element, typlen);
+        } else {
+            /* fixed-length, passed by reference */
+            hyperloglog = hll_add_element(hyperloglog, (char*)element, typlen);
+        }
+    }
+
+    /* return the updated bytea */
+    PG_RETURN_BYTEA_P(hyperloglog);
+
+}
+
 
 Datum
 hyperloglog_add_item_agg_error(PG_FUNCTION_ARGS)
@@ -290,7 +373,8 @@ hyperloglog_add_item_agg_error(PG_FUNCTION_ARGS)
         if ((errorRate <= 0) || (errorRate > 1))
             elog(ERROR, "error rate has to be between 0 and 1");
 
-        hyperloglog = hll_create(DEFAULT_NDISTINCT, errorRate);
+	hyperloglog = hll_create(DEFAULT_NDISTINCT, errorRate, PACKED);
+
 
     } else { /* existing estimator */
         hyperloglog = PG_GETARG_HLL_P(0);
@@ -332,6 +416,83 @@ hyperloglog_add_item_agg_error(PG_FUNCTION_ARGS)
 }
 
 Datum
+hyperloglog_add_item_agg_error_pack(PG_FUNCTION_ARGS)
+{
+
+    HLLCounter hyperloglog;
+    float errorRate; /* required error rate */
+
+    /* info for anyelement */
+    Oid         element_type = get_fn_expr_argtype(fcinfo->flinfo, 1);
+    Datum       element = PG_GETARG_DATUM(1);
+    int16       typlen;
+    bool        typbyval;
+    char        typalign;
+
+    /* Create a new estimator (with requested error rate) or reuse the
+ *      * existing one. Return null if both counter and element args are null.
+ *           * This prevents excess empty counter creation */
+    if (PG_ARGISNULL(0) && PG_ARGISNULL(1)){
+        PG_RETURN_NULL();
+    } else if (PG_ARGISNULL(0)) {
+
+        errorRate = PG_GETARG_FLOAT4(2);
+
+        /* error rate between 0 and 1 (not 0) */
+        if ((errorRate <= 0) || (errorRate > 1))
+            elog(ERROR, "error rate has to be between 0 and 1");
+
+        if (!PG_ARGISNULL(3) && ('u' == VARDATA(PG_GETARG_TEXT_P(3))[0] || 'U'  == VARDATA(PG_GETARG_TEXT_P(3))[0] )){
+            hyperloglog = hll_create(DEFAULT_NDISTINCT, errorRate, PACKED_UNPACKED);
+        } else if (!PG_ARGISNULL(3) && ('p' == VARDATA(PG_GETARG_TEXT_P(3))[0] || 'P'  == VARDATA(PG_GETARG_TEXT_P(3))[0] ) ) {
+            hyperloglog = hll_create(DEFAULT_NDISTINCT, errorRate, PACKED);
+        } else {
+            elog(ERROR,"ERROR: Improper format specification! Must be U or P");
+            PG_RETURN_NULL();
+        }
+
+    } else { /* existing estimator */
+        hyperloglog = PG_GETARG_HLL_P(0);
+    }
+
+    /* add the item to the estimator (skip NULLs) */
+    if (! PG_ARGISNULL(1)) {
+
+        /* TODO The requests for type info shouldn't be a problem (thanks to
+ *                  * lsyscache), but if it turns out to have a noticeable impact it's
+ *                                   * possible to cache that between the calls (in the estimator).
+ *                                                    *
+ *                                                                     * I have noticed no measurable effect from either option. */
+
+        /* get type information for the second parameter (anyelement item) */
+        get_typlenbyvalalign(element_type, &typlen, &typbyval, &typalign);
+
+                /* decompress if needed */
+        if(hyperloglog->b < 0){
+            hyperloglog = hll_decompress(hyperloglog);
+        }
+
+        /* it this a varlena type, passed by reference or by value ? */
+        if (typlen == -1) {
+            /* varlena */
+            hyperloglog = hll_add_element(hyperloglog, VARDATA_ANY(element), VARSIZE_ANY_EXHDR(element));
+        } else if (typbyval) {
+            /* fixed-length, passed by value */
+            hyperloglog = hll_add_element(hyperloglog, (char*)&element, typlen);
+        } else {
+            /* fixed-length, passed by reference */
+            hyperloglog = hll_add_element(hyperloglog, (char*)element, typlen);
+        }
+    }
+
+    /* return the updated bytea */
+    PG_RETURN_BYTEA_P(hyperloglog);
+
+}
+
+
+
+Datum
 hyperloglog_add_item_agg_default(PG_FUNCTION_ARGS)
 {
 
@@ -350,7 +511,7 @@ hyperloglog_add_item_agg_default(PG_FUNCTION_ARGS)
     if (PG_ARGISNULL(0) && PG_ARGISNULL(1)){
         PG_RETURN_NULL();
     } else if (PG_ARGISNULL(0)) {
-        hyperloglog = hll_create(DEFAULT_NDISTINCT, DEFAULT_ERROR);
+	hyperloglog = hll_create(DEFAULT_NDISTINCT, DEFAULT_ERROR, PACKED);
     } else {
         hyperloglog = PG_GETARG_HLL_P(0);
     }
@@ -393,6 +554,76 @@ hyperloglog_add_item_agg_default(PG_FUNCTION_ARGS)
 }
 
 Datum
+hyperloglog_add_item_agg_default_pack(PG_FUNCTION_ARGS)
+{
+
+    HLLCounter hyperloglog;
+
+    /* info for anyelement */
+    Oid         element_type = get_fn_expr_argtype(fcinfo->flinfo, 1);
+    Datum       element = PG_GETARG_DATUM(1);
+    int16       typlen;
+    bool        typbyval;
+    char        typalign;
+
+    /* Create a new estimator (with default error rate and ndistinct) or reuse
+ *      * the existing one. Return null if both counter and element args are null.
+ *               * This prevents excess empty counter creation */
+    if (PG_ARGISNULL(0) && PG_ARGISNULL(1)){
+        PG_RETURN_NULL();
+    } else if (PG_ARGISNULL(0)) {
+        if (!PG_ARGISNULL(2) && ('u' == VARDATA(PG_GETARG_TEXT_P(2))[0] || 'U'  == VARDATA(PG_GETARG_TEXT_P(2))[0] )){
+            hyperloglog = hll_create(DEFAULT_NDISTINCT, DEFAULT_ERROR, PACKED_UNPACKED);
+        } else if (!PG_ARGISNULL(2) && ('p' == VARDATA(PG_GETARG_TEXT_P(2))[0] || 'P'  == VARDATA(PG_GETARG_TEXT_P(2))[0] ) ) {
+            hyperloglog = hll_create(DEFAULT_NDISTINCT, DEFAULT_ERROR, PACKED);
+        } else {
+	    elog(ERROR,"ERROR: Improper format specification! Must be U or P");
+	    PG_RETURN_NULL();
+	}
+    } else {
+        hyperloglog = PG_GETARG_HLL_P(0);
+    }
+
+    /* add the item to the estimator (skip NULLs) */
+    if (! PG_ARGISNULL(1)) {
+
+        /* TODO The requests for type info shouldn't be a problem (thanks to
+ *                  * lsyscache), but if it turns out to have a noticeable impact it's
+ *                                   * possible to cache that between the calls (in the estimator).
+ *                                                    *
+ *                                                                     * I have noticed no measurable effect from either option. */
+
+        /* get type information for the second parameter (anyelement item) */
+        get_typlenbyvalalign(element_type, &typlen, &typbyval, &typalign);
+
+                /* decompress if needed */
+        if(hyperloglog->b < 0){
+            hyperloglog = hll_decompress(hyperloglog);
+        }
+
+        /* it this a varlena type, passed by reference or by value ? */
+        if (typlen == -1) {
+            /* varlena */
+            /* leaving idnetifier of VARLENA */
+            hyperloglog = hll_add_element(hyperloglog, VARDATA_ANY(element), VARSIZE_ANY_EXHDR(element));
+        } else if (typbyval) {
+            /* fixed-length, passed by value */
+            hyperloglog = hll_add_element(hyperloglog, (char*)&element, typlen);
+        } else {
+            /* fixed-length, passed by reference */
+            hyperloglog = hll_add_element(hyperloglog, (char*)element, typlen);
+        }
+
+    }
+
+    /* return the updated bytea */
+    PG_RETURN_BYTEA_P(hyperloglog);
+
+}
+
+
+
+Datum
 hyperloglog_merge(PG_FUNCTION_ARGS)
 {
 
@@ -419,12 +650,8 @@ hyperloglog_merge(PG_FUNCTION_ARGS)
     	counter2 = PG_GETARG_HLL_P_COPY(1);
 
 	    /* unpack if needed */
-		if (counter1->format == 0) {
-			counter1 = hll_unpack(counter1);
-		}
-		if (counter2->format == 0) {
-			counter2 = hll_unpack(counter2);
-		}
+	counter1 = hll_unpack(counter1);
+	counter2 = hll_unpack(counter2);
 
         /* perform the merge */
         counter1 = hll_merge(counter1, counter2);
@@ -467,12 +694,8 @@ hyperloglog_merge_unsafe(PG_FUNCTION_ARGS)
 		counter2 = PG_GETARG_HLL_P(1);
 
 		/* unpack if needed */
-		if (counter1->format == 0) {
-			counter1 = hll_unpack(counter1);
-		}
-		if (counter2->format == 0) {
-			counter2 = hll_unpack(counter2);
-		}
+		counter1 = hll_unpack(counter1);
+		counter2 = hll_unpack(counter2);
 
 		/* perform the merge */
 		counter1 = hll_merge(counter1, counter2);
@@ -493,9 +716,7 @@ hyperloglog_get_estimate(PG_FUNCTION_ARGS)
     HLLCounter hyperloglog = PG_GETARG_HLL_P_COPY(0);
     
     /* unpack if needed */
-	if (hyperloglog->format == 0) {
-		hyperloglog = hll_unpack(hyperloglog);
-	}
+    hyperloglog = hll_unpack(hyperloglog);
 
     estimate = hll_estimate(hyperloglog);
 
@@ -509,7 +730,7 @@ hyperloglog_init_default(PG_FUNCTION_ARGS)
 {
       HLLCounter hyperloglog;
 
-      hyperloglog = hll_create(DEFAULT_NDISTINCT, DEFAULT_ERROR);
+      hyperloglog = hll_create(DEFAULT_NDISTINCT, DEFAULT_ERROR,PACKED);
 
       PG_RETURN_BYTEA_P(hyperloglog);
 }
@@ -528,7 +749,7 @@ hyperloglog_init_error(PG_FUNCTION_ARGS)
           elog(ERROR, "error rate has to be between 0 and 1");
       }
 
-      hyperloglog = hll_create(DEFAULT_NDISTINCT, errorRate);
+      hyperloglog = hll_create(DEFAULT_NDISTINCT, errorRate, PACKED);
 
       PG_RETURN_BYTEA_P(hyperloglog);
 }
@@ -549,7 +770,7 @@ hyperloglog_init(PG_FUNCTION_ARGS)
           elog(ERROR, "error rate has to be between 0 and 1");
       }
 
-      hyperloglog = hll_create(ndistinct, errorRate);
+      hyperloglog = hll_create(ndistinct, errorRate, PACKED);
 
       PG_RETURN_BYTEA_P(hyperloglog);
 }
@@ -699,7 +920,7 @@ hyperloglog_decomp(PG_FUNCTION_ARGS)
     }
 
     hyperloglog =  PG_GETARG_HLL_P_COPY(0);
-    if (hyperloglog-> b < 0 && hyperloglog->format == 0 ) {
+    if (hyperloglog-> b < 0 && hyperloglog->format == PACKED ) {
 		hyperloglog = hll_decompress(hyperloglog);
     }
 
@@ -757,9 +978,9 @@ hyperloglog_info(PG_FUNCTION_ARGS)
         snprintf(enc,7,"sparse");
     }
     
-	if (hyperloglog->format == 0){
+	if (hyperloglog->format == PACKED){
 		snprintf(format, 9, "packed");
-	} else if (hyperloglog->format == 1) {
+	} else if (hyperloglog->format == UNPACKED) {
 		snprintf(format, 9, "unpacked");
 	}
 
@@ -790,16 +1011,12 @@ hyperloglog_equal(PG_FUNCTION_ARGS)
     if (PG_ARGISNULL(0) || PG_ARGISNULL(1)) {
         PG_RETURN_NULL();
     } else {
-	    counter1 = PG_GETARG_HLL_P_COPY(0);
-	    counter2 = PG_GETARG_HLL_P_COPY(1);
+	counter1 = PG_GETARG_HLL_P_COPY(0);
+	counter2 = PG_GETARG_HLL_P_COPY(1);
 
-	    /* unpack if needed */
-		if (counter1->format == 0) {
-			counter1 = hll_unpack(counter1);
-		}
-		if (counter2->format == 0) {
-			counter2 = hll_unpack(counter2);
-		}
+	/* unpack if needed */
+	counter1 = hll_unpack(counter1);
+        counter2 = hll_unpack(counter2);
 
 
         PG_RETURN_BOOL(hll_is_equal(counter1, counter2));
@@ -817,16 +1034,12 @@ hyperloglog_not_equal(PG_FUNCTION_ARGS)
     if (PG_ARGISNULL(0) || PG_ARGISNULL(1)) {
         PG_RETURN_NULL();
     } else {
-	    counter1 = PG_GETARG_HLL_P_COPY(0);
-	    counter2 = PG_GETARG_HLL_P_COPY(1);
+	counter1 = PG_GETARG_HLL_P_COPY(0);
+	counter2 = PG_GETARG_HLL_P_COPY(1);
 
-	    /* unpack if needed */
-		if (counter1->format == 0) {
-			counter1 = hll_unpack(counter1);
-		}
-		if (counter2->format == 0) {
-			counter2 = hll_unpack(counter2);
-		}
+	/* unpack if needed */
+	counter1 = hll_unpack(counter1);
+	counter2 = hll_unpack(counter2);
 
 
         PG_RETURN_BOOL(!hll_is_equal(counter1, counter2));
@@ -844,35 +1057,27 @@ hyperloglog_union(PG_FUNCTION_ARGS)
     if (PG_ARGISNULL(0) && PG_ARGISNULL(1)) {
         PG_RETURN_NULL();
     } else if (PG_ARGISNULL(0)) {
-	    counter2 = PG_GETARG_HLL_P_COPY(1);
+	counter2 = PG_GETARG_HLL_P_COPY(1);
 
-	    /* unpack if needed */
-		if (counter2->format == 0) {
-			counter2 = hll_unpack(counter2);
-		}
+	/* unpack if needed */
+	counter2 = hll_unpack(counter2);
 
 	
         PG_RETURN_FLOAT8(hll_estimate(counter2));
     } else if (PG_ARGISNULL(1)) {
-	    counter1 = PG_GETARG_HLL_P_COPY(0);
+	counter1 = PG_GETARG_HLL_P_COPY(0);
 
-	    /* unpack if needed */
-		if (counter1->format == 0) {
-			counter1 = hll_unpack(counter1);
-		}
+	/* unpack if needed */
+	counter1 = hll_unpack(counter1);
 
         PG_RETURN_FLOAT8(hll_estimate(counter1));
     } else {
-	    counter1 = PG_GETARG_HLL_P_COPY(0);
-	    counter2 = PG_GETARG_HLL_P_COPY(1);
+	counter1 = PG_GETARG_HLL_P_COPY(0);
+	counter2 = PG_GETARG_HLL_P_COPY(1);
 
-	    /* unpack if needed */
-		if (counter1->format == 0) {
-			counter1 = hll_unpack(counter1);
-		}
-		if (counter2->format == 0) {
-			counter2 = hll_unpack(counter2);
-		}
+	/* unpack if needed */
+	counter1 = hll_unpack(counter1);
+	counter2 = hll_unpack(counter2);
 
 
         PG_RETURN_FLOAT8(hll_estimate(hll_merge(counter1, counter2)));
@@ -891,16 +1096,12 @@ hyperloglog_intersection(PG_FUNCTION_ARGS)
     if (PG_ARGISNULL(0) || PG_ARGISNULL(1)) {
         PG_RETURN_NULL();
     } else {
-	    counter1 = PG_GETARG_HLL_P_COPY(0);
-	    counter2 = PG_GETARG_HLL_P_COPY(1);
+	counter1 = PG_GETARG_HLL_P_COPY(0);
+	counter2 = PG_GETARG_HLL_P_COPY(1);
 
 	    /* unpack if needed */
-		if (counter1->format == 0) {
-			counter1 = hll_unpack(counter1);
-		}
-		if (counter2->format == 0) {
-			counter2 = hll_unpack(counter2);
-		}
+	counter1 = hll_unpack(counter1);
+	counter2 = hll_unpack(counter2);
 
         A = hll_estimate(counter1);
         B = hll_estimate(counter2);
@@ -921,34 +1122,26 @@ hyperloglog_compliment(PG_FUNCTION_ARGS)
     if (PG_ARGISNULL(0) && PG_ARGISNULL(1)) {
         PG_RETURN_NULL();
     } else if (PG_ARGISNULL(0)) {
-	    counter2 = PG_GETARG_HLL_P_COPY(1);
+	counter2 = PG_GETARG_HLL_P_COPY(1);
 
 	    /* unpack if needed */
-		if (counter2->format == 0) {
-			counter2 = hll_unpack(counter2);
-		}
+	counter2 = hll_unpack(counter2);
 	
         PG_RETURN_FLOAT8(hll_estimate(counter2));
     } else if (PG_ARGISNULL(1)) {
-	    counter1 = PG_GETARG_HLL_P_COPY(0);
+	counter1 = PG_GETARG_HLL_P_COPY(0);
 
-	    /* unpack if needed */
-		if (counter1->format == 0) {
-			counter1 = hll_unpack(counter1);
-		}
+	/* unpack if needed */
+	counter1 = hll_unpack(counter1);
 
         PG_RETURN_FLOAT8(hll_estimate(counter1));
     } else {
-	    counter1 = PG_GETARG_HLL_P_COPY(0);
-	    counter2 = PG_GETARG_HLL_P_COPY(1);
+	counter1 = PG_GETARG_HLL_P_COPY(0);
+	counter2 = PG_GETARG_HLL_P_COPY(1);
 
-	    /* unpack if needed */
-		if (counter1->format == 0) {
-			counter1 = hll_unpack(counter1);
-		}
-		if (counter2->format == 0) {
-			counter2 = hll_unpack(counter2);
-		}
+	/* unpack if needed */
+	counter1 = hll_unpack(counter1);
+	counter2 = hll_unpack(counter2);
 
         B = hll_estimate(counter2);
         AUB = hll_estimate(hll_merge(counter1, counter2));
@@ -968,34 +1161,26 @@ hyperloglog_symmetric_diff(PG_FUNCTION_ARGS)
     if (PG_ARGISNULL(0) && PG_ARGISNULL(1)) {
         PG_RETURN_NULL();
     } else if (PG_ARGISNULL(0)) {
-	    counter2 = PG_GETARG_HLL_P_COPY(1);
+	counter2 = PG_GETARG_HLL_P_COPY(1);
 
-	    /* unpack if needed */
-		if (counter2->format == 0) {
-			counter2 = hll_unpack(counter2);
-		}
+	/* unpack if needed */
+	counter2 = hll_unpack(counter2);
 	
         PG_RETURN_FLOAT8(hll_estimate(counter2));
     } else if (PG_ARGISNULL(1)) {
-	    counter1 = PG_GETARG_HLL_P_COPY(0);
+	counter1 = PG_GETARG_HLL_P_COPY(0);
 
-	    /* unpack if needed */
-		if (counter1->format == 0) {
-			counter1 = hll_unpack(counter1);
-		}
+	/* unpack if needed */
+	counter1 = hll_unpack(counter1);
 
         PG_RETURN_FLOAT8(hll_estimate(counter1));
     } else {
-	    counter1 = PG_GETARG_HLL_P_COPY(0);
-	    counter2 = PG_GETARG_HLL_P_COPY(1);
+	counter1 = PG_GETARG_HLL_P_COPY(0);
+	counter2 = PG_GETARG_HLL_P_COPY(1);
 
-	    /* unpack if needed */
-		if (counter1->format == 0) {
-			counter1 = hll_unpack(counter1);
-		}
-		if (counter2->format == 0) {
-			counter2 = hll_unpack(counter2);
-		}
+	/* unpack if needed */
+	counter1 = hll_unpack(counter1);
+	counter2 = hll_unpack(counter2);
 
 
         A = hll_estimate(counter1);

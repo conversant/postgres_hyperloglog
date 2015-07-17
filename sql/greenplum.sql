@@ -181,12 +181,25 @@ CREATE OR REPLACE FUNCTION hyperloglog_add_item_agg(counter hyperloglog_estimato
      AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg'
      LANGUAGE C IMMUTABLE;
 
+CREATE OR REPLACE FUNCTION hyperloglog_add_item_agg(counter hyperloglog_estimator, item anyelement, error_rate real, ndistinct double precision, format text) RETURNS hyperloglog_estimator
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg_pack'
+     LANGUAGE C IMMUTABLE;
+
 CREATE OR REPLACE FUNCTION hyperloglog_add_item_agg_error(counter hyperloglog_estimator, item anyelement, error_rate real) RETURNS hyperloglog_estimator
      AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg_error'
      LANGUAGE C IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION hyperloglog_add_item_agg_error(counter hyperloglog_estimator, item anyelement, error_rate real,format text) RETURNS hyperloglog_estimator
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg_error_pack'
+     LANGUAGE C IMMUTABLE;
+
      
 CREATE OR REPLACE FUNCTION hyperloglog_add_item_agg_default(counter hyperloglog_estimator, item anyelement) RETURNS hyperloglog_estimator
      AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg_default'
+     LANGUAGE C IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION hyperloglog_add_item_agg_default(counter hyperloglog_estimator, item anyelement, format text) RETURNS hyperloglog_estimator
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg_default_pack'
      LANGUAGE C IMMUTABLE;
      
 CREATE OR REPLACE FUNCTION hyperloglog_get_estimate_bigint(hyperloglog_estimator) RETURNS bigint
@@ -303,7 +316,18 @@ CREATE AGGREGATE hyperloglog_accum(anyelement, real , double precision)
     stype = hyperloglog_estimator,
     finalfunc = hyperloglog_comp
 );
-COMMENT ON AGGREGATE hyperloglog_accum(anyelement,real) IS 'Accumulates anyelement into a hyperloglog_estimator of a specified capacity but and specified accuracy (variable index bits, variable bits/bucket)';
+COMMENT ON AGGREGATE hyperloglog_accum(anyelement,real,double precision) IS 'Accumulates anyelement into a hyperloglog_estimator of a specified capacity but and specified accuracy (variable index bits, variable bits/bucket)';
+
+DROP AGGREGATE IF EXISTS hyperloglog_accum(anyelement, real , double precision, text);
+CREATE AGGREGATE hyperloglog_accum(anyelement, real , double precision, text)
+(
+    sfunc = hyperloglog_add_item_agg,
+    prefunc = hyperloglog_merge_agg,
+    stype = hyperloglog_estimator,
+    finalfunc = hyperloglog_comp
+);
+COMMENT ON AGGREGATE hyperloglog_accum(anyelement,real,double precision,text) IS 'Accumulates anyelement into a hyperloglog_estimator of a specified capacity but and specified accuracy (variable index bits, variable bits/bucket)';
+
 
 DROP AGGREGATE IF EXISTS hyperloglog_accum(anyelement, real);
 CREATE AGGREGATE hyperloglog_accum(anyelement, real)
@@ -315,6 +339,18 @@ CREATE AGGREGATE hyperloglog_accum(anyelement, real)
 );
 COMMENT ON AGGREGATE hyperloglog_accum(anyelement,real) IS 'Accumulates anyelement into a hyperloglog_estimator of default capacity but and specified accuracy (variable index bits, 6 bits/bucket)';
 
+DROP AGGREGATE IF EXISTS hyperloglog_accum(anyelement, real, text);
+CREATE AGGREGATE hyperloglog_accum(anyelement, real, text)
+(
+    sfunc = hyperloglog_add_item_agg_error,
+    prefunc = hyperloglog_merge_agg,
+    stype = hyperloglog_estimator,
+    finalfunc = hyperloglog_comp
+);
+COMMENT ON AGGREGATE hyperloglog_accum(anyelement,real,text) IS 'Accumulates anyelement into a hyperloglog_estimator of default capacity but and specified accuracy (variable index bits, 6 bits/bucket)';
+
+
+
 DROP AGGREGATE IF EXISTS hyperloglog_accum(anyelement);
 CREATE AGGREGATE hyperloglog_accum(anyelement)
 (
@@ -324,6 +360,18 @@ CREATE AGGREGATE hyperloglog_accum(anyelement)
     finalfunc = hyperloglog_comp
 );
 COMMENT ON AGGREGATE hyperloglog_accum(anyelement) IS 'Accumulates anyelement into a hyperloglog_estimator of default size (14 index bits, 6 bits/bucket)';
+
+DROP AGGREGATE IF EXISTS hyperloglog_accum(anyelement, text);
+CREATE AGGREGATE hyperloglog_accum(anyelement, text)
+(
+    sfunc = hyperloglog_add_item_agg_default,
+    prefunc = hyperloglog_merge_agg,
+    stype = hyperloglog_estimator,
+    finalfunc = hyperloglog_comp
+);
+COMMENT ON AGGREGATE hyperloglog_accum(anyelement,text) IS 'Accumulates anyelement into a hyperloglog_estimator of default capacity but and specified accuracy (variable index bits, 6 bits/bucket)';
+
+
 
 -- mirror real sum function
 DROP AGGREGATE IF EXISTS sum_unsafe(hyperloglog_estimator);

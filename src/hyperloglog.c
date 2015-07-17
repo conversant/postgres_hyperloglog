@@ -97,22 +97,31 @@ static int hll_get_size_sparse(double ndistinct, float error);
 HLLCounter
 hll_unpack(HLLCounter hloglog){
 
-	char entry;
+    char entry;
     int i, m;
     HLLCounter htemp;
+
+    if (hloglog->format == UNPACKED || hloglog->format == UNPACKED_UNPACKED || hloglog->format == UNPACKED_PACKED){
+	return hloglog;
+    }
 	
 	/* use decompress to handle compressed unpacking */
 	if (hloglog->b < 0){
 	     return hll_decompress_unpacked(hloglog);
 	}
 
-	/* sparse estimators are unpacked */
-	if (hloglog->idx != -1){
-		return hloglog;
-	}
-
 	/* set format to unpacked*/
-    hloglog->format = 1;
+    if (hloglog->format == PACKED_UNPACKED){
+	hloglog->format = UNPACKED_UNPACKED;
+    } else if (hloglog->format == PACKED){
+	hloglog->format = UNPACKED;
+    }
+
+        /* sparse estimators are unpacked */
+        if (hloglog->idx != -1){
+                return hloglog;
+        }
+
 
     /* allocate and zero an array large enough to hold all the decompressed
     * bins */
@@ -166,7 +175,7 @@ hll_decompress_dense_unpacked(HLLCounter hloglog)
 	/* reset b to positive value for calcs and to indicate data is
 	* decompressed */
 	hloglog->b = -1 * (hloglog->b);
-	hloglog->format = 1;
+	hloglog->format = UNPACKED;
 
 	/* allocate and zero an array large enough to hold all the decompressed
 	* bins */
@@ -199,7 +208,7 @@ hll_decompress_dense_unpacked(HLLCounter hloglog)
  *      instance of HLL estimator (throws ERROR in case of failure)
  */
 HLLCounter
-hll_create(double ndistinct, float error)
+hll_create(double ndistinct, float error, uint8_t format)
 {
 
     float m;
@@ -222,7 +231,7 @@ hll_create(double ndistinct, float error)
     p->version = STRUCT_VERSION;
 
 	/* set the format to 0 for bitpacked*/
-    p->format = 0;
+    p->format = format;
 
     /* what is the minimum number of bins to achieve the requested error rate?
      *  we'll increase this to the nearest power of two later */
@@ -425,7 +434,7 @@ hll_estimate(HLLCounter hloglog)
 {
     double E = 0;
     
-	if (hloglog->idx == -1 && hloglog->format == 1){
+	if (hloglog->idx == -1 && hloglog->format != PACKED ){
 		E = hll_estimate_dense(hloglog);
 	} else {
 		E = hll_estimate_sparse(hloglog);
@@ -811,7 +820,7 @@ sparse_to_dense_unpacked(HLLCounter hloglog)
 		return hloglog;
 	}
 
-	hloglog->format = 1;
+	hloglog->format = UNPACKED;
 
 	/* Sparse encoded counters are smaller than dense so new space needs to be
 	*  alloced */
@@ -888,7 +897,7 @@ hll_is_equal(HLLCounter counter1, HLLCounter counter2)
         elog(ERROR, "index size (bit length) of estimators differs (%d != %d)", counter1->b, counter2->b);
     else if (counter1->binbits != counter2->binbits)
         elog(ERROR, "bin size of estimators differs (%d != %d)", counter1->binbits, counter2->binbits);
-    else if ((counter1->format != 1 && counter1->idx == -1) || (counter2->format != 1 && counter2->idx == -1))
+    else if (((counter1->format == PACKED || counter1->format == PACKED_UNPACKED) && counter1->idx == -1) || ((counter2->format == PACKED || counter2->format == PACKED_UNPACKED) && counter2->idx == -1))
 	elog(ERROR, "Estimator(s) are not unpacked! (%d,%d)", counter1->format, counter2->format);
 
     /* compare registers returning false on any difference */
@@ -945,11 +954,20 @@ hll_compress(HLLCounter hloglog)
         return hloglog;
     }
 
-    if (hloglog->idx == -1 && hloglog->format == 0){
+    elog(INFO,"in compress %u",hloglog->format);
+
+    if (hloglog->idx == -1 && hloglog->format == PACKED){
         hloglog = hll_compress_dense(hloglog);
-    } else if (hloglog->idx == -1 && hloglog->format == 1){
-		hloglog = hll_compress_dense_unpacked(hloglog);
-    } else {
+    } else if (hloglog->idx == -1 && hloglog->format == UNPACKED){
+	hloglog = hll_compress_dense_unpacked(hloglog);
+    } else if (hloglog->idx == -1 &&  hloglog->format == UNPACKED_PACKED) {
+	hloglog->format = UNPACKED;
+	hloglog = hll_compress_dense_unpacked(hloglog);
+    } else if (hloglog->format == UNPACKED_UNPACKED){
+	hloglog->format = UNPACKED;
+    } else if (hloglog->format == PACKED_UNPACKED){
+	hloglog = hll_unpack(hloglog);
+    } else if (hloglog->idx != -1) {
         hloglog = hll_compress_sparse(hloglog);
     }
     
@@ -1068,7 +1086,7 @@ hll_compress_dense_unpacked(HLLCounter hloglog)
 
 	/* invert the b value so it being < 0 can be used as a compression flag */
 	hloglog->b = -1 * (hloglog->b);
-	hloglog->format = 0;
+	hloglog->format = PACKED;
 
 	/* free allocated memory */
 	if (dest){

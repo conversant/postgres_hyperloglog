@@ -58,6 +58,11 @@
 #define PRECISION_5_MAX_INTERPOLATION_POINTS 159
 #define PRECISION_4_MAX_INTERPOLATION_POINTS 79
 #define STRUCT_VERSION 2
+#define PACKED 0
+#define PACKED_UNPACKED 1
+#define UNPACKED_PACKED 2
+#define UNPACKED_UNPACKED 3
+#define UNPACKED 4
 
 #define HLL_DENSE_GET_REGISTER(target,p,regnum,hll_bits) do { \
     uint8_t *_p = (uint8_t*) p; \
@@ -123,7 +128,7 @@ typedef HLLData * HLLCounter;
 
 /* creates an optimal bitmap able to count a multiset with the expected
  * cardinality and the given error rate. */
-HLLCounter hll_create(double ndistinct, float error);
+HLLCounter hll_create(double ndistinct, float error, uint8_t format);
 
 /* Helper function to return the size of a fully populated counter with
  * the given parameters. */
