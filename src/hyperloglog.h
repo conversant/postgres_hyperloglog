@@ -60,9 +60,8 @@
 #define STRUCT_VERSION 2
 #define PACKED 0
 #define PACKED_UNPACKED 1
-#define UNPACKED_PACKED 2
+#define UNPACKED 2
 #define UNPACKED_UNPACKED 3
-#define UNPACKED 4
 
 #define HLL_DENSE_GET_REGISTER(target,p,regnum,hll_bits) do { \
     uint8_t *_p = (uint8_t*) p; \

@@ -67,7 +67,7 @@ hll_unpack(HLLCounter hloglog){
     int i, m;
     HLLCounter htemp;
 
-    if (hloglog->format == UNPACKED || hloglog->format == UNPACKED_UNPACKED || hloglog->format == UNPACKED_PACKED){
+    if (hloglog->format == UNPACKED || hloglog->format == UNPACKED_UNPACKED){
 	return hloglog;
     }
 	
@@ -923,9 +923,6 @@ hll_compress(HLLCounter hloglog)
     if (hloglog->idx == -1 && hloglog->format == PACKED){
         hloglog = hll_compress_dense(hloglog);
     } else if (hloglog->idx == -1 && hloglog->format == UNPACKED){
-	hloglog = hll_compress_dense_unpacked(hloglog);
-    } else if (hloglog->idx == -1 &&  hloglog->format == UNPACKED_PACKED) {
-	hloglog->format = UNPACKED;
 	hloglog = hll_compress_dense_unpacked(hloglog);
     } else if (hloglog->format == UNPACKED_UNPACKED){
 	hloglog->format = UNPACKED;
