@@ -36,40 +36,6 @@ extern const double biasData[NUM_OF_PRECISIONS][MAX_NUM_OF_INTERPOLATION_POINTS]
 /* precomputed inverse powers of 2 */
 extern const double PE[NUM_OF_PRECOMPUTED_EXPONENTS];
 
-/* precomputed integer powers of 2*/
-const uint32_t POW2[32] = { 1,2,
-4,
-8,
-16,
-32,
-64,
-128,
-256,
-512,
-1024,
-2048,
-4096,
-8192,
-16384,
-32768,
-65536,
-131072,
-262144,
-524288,
-1048576,
-2097152,
-4194304,
-8388608,
-16777216,
-33554432,
-67108864,
-134217728,
-268435456,
-536870912,
-1073741824,
-2147483648};
-
-
 /* ------------- function declarations for local functions --------------- */
 static double hll_estimate_dense(HLLCounter hloglog);
 static double hll_estimate_sparse(HLLCounter hloglog);
@@ -125,7 +91,7 @@ hll_unpack(HLLCounter hloglog){
 
     /* allocate and zero an array large enough to hold all the decompressed
     * bins */
-    m = POW2[hloglog->b];
+    m = POW2(hloglog->b);
     htemp = palloc(sizeof(HLLData) + m);
     memcpy(htemp, hloglog, sizeof(HLLData));
 
@@ -179,7 +145,7 @@ hll_decompress_dense_unpacked(HLLCounter hloglog)
 
 	/* allocate and zero an array large enough to hold all the decompressed
 	* bins */
-	m = POW2[hloglog->b];
+	m = POW2(hloglog->b);
 	htemp = palloc(sizeof(HLLData) + m);
 	memset(htemp, 0, m + sizeof(HLLData));
 	memcpy(htemp, hloglog, sizeof(HLLData));
@@ -290,7 +256,7 @@ hll_merge(HLLCounter counter1, HLLCounter counter2)
 	HLLCounter result = counter1;
 	uint8_t rho;
 	uint32_t * sparse_data, *sparse_data_result, idx;
-	int upper_bound = POW2[result->b];
+	int upper_bound = POW2(result->b);
 
 	/* check compatibility first */
 	//if (counter1->b != counter2->b && -1*counter1->b != counter2->b)
@@ -321,7 +287,7 @@ hll_merge(HLLCounter counter1, HLLCounter counter2)
 				/* grab the binbits before the indicator bit and add that to
 				* the number of zero bits in p-p' */
 				idx = idx >> (32 - result->b);
-				rho = ((sparse_data[i] & (int)(POW2[result->binbits + 1] - 2)) >> 1) + (32 - 1 - result->b - result->binbits);
+				rho = ((sparse_data[i] & (int)(POW2(result->binbits + 1) - 2)) >> 1) + (32 - 1 - result->b - result->binbits);
 			}
 			else {
 				idx = (idx << result->binbits) >> result->binbits;
@@ -398,7 +364,7 @@ hll_get_size(double ndistinct, float error)
      *  size_in_bytes = struct_overhead + num_buckets*(bits_per_bucket/8)
      *
      * */  
-    return sizeof(HLLData) + (int)(ceil(POW2[b]) * ceil(log2(log2(ndistinct))) / 8.0);
+    return sizeof(HLLData) + (int)(ceil(POW2(b)) * ceil(log2(log2(ndistinct))) / 8.0);
 
 }
 
@@ -425,7 +391,7 @@ hll_get_size_sparse(double ndistinct, float error)
     else if (b > MAX_INDEX_BITS)
         elog(ERROR, "number of index bits exceeds MAX_INDEX_BITS (requested %d)",b);
     
-    return POW2[b-2];
+    return POW2(b-2);
 }
 
 /* Hyperloglog estimate header function */
@@ -457,7 +423,7 @@ hll_estimate_dense(HLLCounter hloglog)
 {
 	double H = 0, E = 0;
 	int j, V = 0;
-	int m = POW2[hloglog->b];
+	int m = POW2(hloglog->b);
 
 	/* compute the sum for the harmonic mean */
 	if (hloglog->binbits <= MAX_PRECOMPUTED_EXPONENTS_BINWIDTH){
@@ -574,7 +540,7 @@ error_estimate(double E,int b)
 static double 
 hll_estimate_sparse(HLLCounter hloglog)
 {
-    int i,V,m = POW2[32 - 1 - hloglog->binbits];
+    int i,V,m = POW2(32 - 1 - hloglog->binbits);
     uint32_t * sparse_data;
 
     /* sort the values so we can ignore duplicates */
@@ -645,7 +611,7 @@ hll_add_hash_dense(HLLCounter hloglog, uint64_t hash)
     if (rho == HASH_LENGTH){
 	    addn = HASH_LENGTH;
 	    rho = (HASH_LENGTH - hloglog->b);
-	    while (addn == HASH_LENGTH && rho < POW2[hloglog->binbits]){
+	    while (addn == HASH_LENGTH && rho < POW2(hloglog->binbits)){
 		    hash = MurmurHash64A((const char * )&hash, HASH_LENGTH/8, HASH_SEED);
             /* zero length runs should be 1 so counter gets set */
 		    addn = __builtin_clzll(hash) + 1;
@@ -728,7 +694,7 @@ encode_hash(uint64_t hash, HLLCounter hloglog)
         if (rho == HASH_LENGTH){
             addn = HASH_LENGTH;
             rho = (HASH_LENGTH - (32- 1 - hloglog->binbits));
-            while (addn == HASH_LENGTH && rho < POW2[hloglog->binbits]){
+            while (addn == HASH_LENGTH && rho < POW2(hloglog->binbits)){
                 hash = MurmurHash64A((const char * )&hash, HASH_LENGTH/8, HASH_SEED);
                 /*zero length runs should be 1 so counter gets set */
                 addn = __builtin_clzll(hash) + 1;
@@ -751,7 +717,7 @@ sparse_to_dense(HLLCounter hloglog)
     uint32_t * sparse_data;
     uint32_t idx;
     uint8_t rho,entry;
-    int i, m = POW2[hloglog->b];
+    int i, m = POW2(hloglog->b);
 
     if (hloglog->idx == -1){
         return hloglog;
@@ -781,7 +747,7 @@ sparse_to_dense(HLLCounter hloglog)
             /* grab the binbits before the indicator bit and add that to the 
              * number of zero bits in p-p' */
             idx = idx >> (32 - hloglog->b);
-            rho = ((sparse_data[i] & (int)(POW2[hloglog->binbits+1] - 2)) >> 1) + (32 - 1 - hloglog->b - hloglog->binbits);
+            rho = ((sparse_data[i] & (int)(POW2(hloglog->binbits+1) - 2)) >> 1) + (32 - 1 - hloglog->b - hloglog->binbits);
         } else {
             idx = (idx << hloglog->binbits) >> hloglog->binbits;
             idx  = idx >> (32 - (hloglog->binbits+ hloglog->b));
@@ -814,7 +780,7 @@ sparse_to_dense_unpacked(HLLCounter hloglog)
 	uint32_t * sparse_data;
 	uint32_t idx;
 	uint8_t rho;
-	int i, m = POW2[hloglog->b];
+	int i, m = POW2(hloglog->b);
 
 	if (hloglog->idx == -1){
 		return hloglog;
@@ -847,7 +813,7 @@ sparse_to_dense_unpacked(HLLCounter hloglog)
 			/* grab the binbits before the indicator bit and add that to the
 			* number of zero bits in p-p' */
 			idx = idx >> (32 - hloglog->b);
-			rho = ((sparse_data[i] & (int)(POW2[hloglog->binbits + 1] - 2)) >> 1) + (32 - 1 - hloglog->b - hloglog->binbits);
+			rho = ((sparse_data[i] & (int)(POW2(hloglog->binbits + 1) - 2)) >> 1) + (32 - 1 - hloglog->b - hloglog->binbits);
 		}
 		else {
 			idx = (idx << hloglog->binbits) >> hloglog->binbits;
@@ -890,7 +856,7 @@ hll_is_equal(HLLCounter counter1, HLLCounter counter2)
 
     HLLCounter counter1copy,counter2copy;
     uint32_t * sparse_data1, *sparse_data2;
-    int i, m = POW2[counter1->b];
+    int i, m = POW2(counter1->b);
 
     /* check compatibility first */
     if (counter1->b != counter2->b)
@@ -954,8 +920,6 @@ hll_compress(HLLCounter hloglog)
         return hloglog;
     }
 
-    elog(INFO,"in compress %u",hloglog->format);
-
     if (hloglog->idx == -1 && hloglog->format == PACKED){
         hloglog = hll_compress_dense(hloglog);
     } else if (hloglog->idx == -1 && hloglog->format == UNPACKED){
@@ -985,7 +949,7 @@ hll_compress_dense(HLLCounter hloglog)
     /* make sure the dest struct has enough space for an unsuccessful 
      * compression and a 4 bytes of overflow since lz might not recognize its
      * over until then preventing segfaults */
-    m = POW2[hloglog->b];
+    m = POW2(hloglog->b);
     dest = malloc(m + sizeof(PGLZ_Header) + 4);
     if (dest == NULL)
         ereport(ERROR,
@@ -1053,7 +1017,7 @@ hll_compress_dense_unpacked(HLLCounter hloglog)
 	/* make sure the dest struct has enough space for an unsuccessful
 	* compression and a 4 bytes of overflow since lz might not recognize its
 	* over until then preventing segfaults */
-	m = POW2[hloglog->b];
+	m = POW2(hloglog->b);
 	dest = malloc(m + sizeof(PGLZ_Header) + 4);
 	if (dest == NULL){
 		return 0;
@@ -1178,7 +1142,7 @@ hll_decompress_dense(HLLCounter hloglog)
 
     /* allocate and zero an array large enough to hold all the decompressed 
      * bins */
-    m = POW2[hloglog->b];
+    m = POW2(hloglog->b);
     dest = malloc(m);
     if (dest == NULL)
         ereport(ERROR,
@@ -1235,14 +1199,14 @@ hll_decompress_sparse(HLLCounter hloglog)
     if (hloglog->b > MAX_INDEX_BITS){
         hloglog->b = hloglog->b - MAX_INDEX_BITS;
         
-        length = POW2[hloglog->b-2];
+        length = POW2(hloglog->b-2);
         htemp = palloc0(length);
         memcpy(htemp,hloglog,VARSIZE(hloglog));
         hloglog = htemp;
 
         SET_VARSIZE(hloglog,length);
     } else {
-        length = POW2[hloglog->b-2];
+        length = POW2(hloglog->b-2);
         htemp = palloc0(length);
         memcpy(htemp,hloglog,sizeof(HLLData));
         group_decode_sorted((uint8_t *)hloglog->data,hloglog->idx,(uint32_t *) htemp->data);
