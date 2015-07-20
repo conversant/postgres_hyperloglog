@@ -24,6 +24,37 @@ BEGIN;
 
     SELECT hyperloglog_get_estimate(hyperloglog_accum(i::text)) accum_dense4 FROM generate_series(1,100000) s(i);
 
+    SELECT hyperloglog_accum(i,'u') accum_unpacked_sparse FROM generate_series(1,1000) s(i);
+
+    SELECT hyperloglog_accum(i,'U') accum_unpacked_sparse FROM generate_series(1,1000) s(i);
+
+    SELECT hyperloglog_accum(i,'u') accum_unpacked_dense1 FROM generate_series(1,10000) s(i);
+
+    SELECT hyperloglog_accum(i,'U') accum_unpacked_dense2 FROM generate_series(1,10000) s(i);
+
+    SELECT hyperloglog_accum(i,'U') accum_unpacked_dense3 FROM generate_series(1,100000) s(i);
+
+    SELECT hyperloglog_accum(i,'p') accum_packed_sparse FROM generate_series(1,1000) s(i);
+
+    SELECT hyperloglog_accum(i,'P') accum_packed_sparse FROM generate_series(1,1000) s(i);
+
+    SELECT hyperloglog_accum(i,'p') accum_packed_dense1 FROM generate_series(1,10000) s(i);
+
+    SELECT hyperloglog_accum(i,'P') accum_packed_dense2 FROM generate_series(1,10000) s(i);
+
+    SELECT hyperloglog_accum(i,'P') accum_packed_dense3 FROM generate_series(1,100000) s(i);
+
+    CREATE TEMP TABLE TEST_ACCUM AS
+    SELECT
+	i
+    FROM
+	generate_series(1,100000) s(i)
+    ;
+
+    SELECT hyperloglog_accum(i,'u') accum_unpacked_two_level_agg FROM TEST_ACCUM;
+
+    SELECT hyperloglog_accum(i,'p') accum_packed_two_level_Agg FROM TEST_ACCUM;
+
     SELECT 
         hyperloglog_get_estimate(hyperloglog_merge(j.counters)) merge_agg_sparse 
     FROM 
@@ -105,5 +136,8 @@ BEGIN;
         #(hyperloglog_merge(a)) 
     FROM 
         test;
-    
+   
+    --Must run last since it throws error
+    SELECT hyperloglog_accum(i,'q') accum_bad_param FROM generate_series(1,10000) s(i);
+ 
 ROLLBACK;
