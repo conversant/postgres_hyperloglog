@@ -921,6 +921,8 @@ hll_is_equal(HLLCounter counter1, HLLCounter counter2)
 HLLCounter
 hll_compress(HLLCounter hloglog)
 {
+
+    ELOG(INFO,"hloglog->b %d hloglog->format %d hloglog->idx %d",hloglog->b,hloglog->format,hloglog->idx);
     /* make sure the data isn't compressed already */
     if (hloglog->b < 0) {
         return hloglog;
