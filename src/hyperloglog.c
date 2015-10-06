@@ -786,9 +786,9 @@ sparse_to_dense_unpacked(HLLCounter hloglog)
 		return hloglog;
 	}
 
-        if (hloglog->format = PACKED){
+        if (hloglog->format == PACKED){
 	    hloglog->format = UNPACKED;
-        } else if (hloglog->format = PACKED_UNPACKED) {
+        } else if (hloglog->format == PACKED_UNPACKED) {
             hloglog->format = UNPACKED_UNPACKED;
         } else {
            elog(ERROR,"Sparse counter should either be PACKED or PACKED_UNPACKED it is:%d",hloglog->format);
