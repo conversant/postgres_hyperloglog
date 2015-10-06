@@ -786,7 +786,13 @@ sparse_to_dense_unpacked(HLLCounter hloglog)
 		return hloglog;
 	}
 
-	hloglog->format = UNPACKED;
+        if (hloglog->format = PACKED){
+	    hloglog->format = UNPACKED;
+        } else if (hloglog->format = PACKED_UNPACKED) {
+            hloglog->format = UNPACKED_UNPACKED;
+        } else {
+           elog(ERROR,"Sparse counter should either be PACKED or PACKED_UNPACKED it is:%d",hloglog->format);
+        }
 
 	/* Sparse encoded counters are smaller than dense so new space needs to be
 	*  alloced */
@@ -822,7 +828,7 @@ sparse_to_dense_unpacked(HLLCounter hloglog)
 		}
 
 		/* keep the highest value */
-		if (rho > hloglog->data[idx]) {
+    	if (rho > hloglog->data[idx]) {
 			hloglog->data[idx] = rho;
 		}
 
