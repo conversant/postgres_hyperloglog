@@ -66,27 +66,29 @@ hll_unpack(HLLCounter hloglog){
     char entry;
     int i, m;
     HLLCounter htemp;
-
+    
+    elog(INFO,"unpack1: hloglog->b %d hloglog->format %d hloglog->idx %d",hloglog->b,hloglog->format,hloglog->idx);
     if (hloglog->format == UNPACKED || hloglog->format == UNPACKED_UNPACKED){
 	return hloglog;
     }
-	
+	elog(INFO,"unpack2: hloglog->b %d hloglog->format %d hloglog->idx %d",hloglog->b,hloglog->format,hloglog->idx);
 	/* use decompress to handle compressed unpacking */
 	if (hloglog->b < 0){
 	     return hll_decompress_unpacked(hloglog);
 	}
-
+elog(INFO,"unpack3: hloglog->b %d hloglog->format %d hloglog->idx %d",hloglog->b,hloglog->format,hloglog->idx);
 	/* set format to unpacked*/
     if (hloglog->format == PACKED_UNPACKED){
 	hloglog->format = UNPACKED_UNPACKED;
     } else if (hloglog->format == PACKED){
 	hloglog->format = UNPACKED;
     }
-
+elog(INFO,"unpack4: hloglog->b %d hloglog->format %d hloglog->idx %d",hloglog->b,hloglog->format,hloglog->idx);
         /* sparse estimators are unpacked */
         if (hloglog->idx != -1){
                 return hloglog;
         }
+        elog(INFO,"unpack 5: hloglog->b %d hloglog->format %d hloglog->idx %d",hloglog->b,hloglog->format,hloglog->idx);
 
 
     /* allocate and zero an array large enough to hold all the decompressed
