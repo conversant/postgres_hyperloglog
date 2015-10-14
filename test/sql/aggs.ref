@@ -2184,9 +2184,6 @@ INSERT 0 1
 (2 rows)
 
    
-    --Must run last since it throws error
-    SELECT hyperloglog_accum(i,'q') accum_bad_param FROM generate_series(1,10000) s(i);
-psql:test/sql/aggs.sql:141: ERROR:  ERROR: Improper format specification! Must be U or P (hyperloglog_counter.c:580)
  
 ROLLBACK;
 ROLLBACK
