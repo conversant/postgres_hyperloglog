@@ -573,6 +573,7 @@ hyperloglog_add_item_agg_default_pack(PG_FUNCTION_ARGS)
         PG_RETURN_NULL();
     } else if (PG_ARGISNULL(0)) {
         if (!PG_ARGISNULL(2) && ('u' == VARDATA(PG_GETARG_TEXT_P(2))[0] || 'U'  == VARDATA(PG_GETARG_TEXT_P(2))[0] )){
+            elog(INFO,"creating PACKED_UNPACKED counter");
             hyperloglog = hll_create(DEFAULT_NDISTINCT, DEFAULT_ERROR, PACKED_UNPACKED);
         } else if (!PG_ARGISNULL(2) && ('p' == VARDATA(PG_GETARG_TEXT_P(2))[0] || 'P'  == VARDATA(PG_GETARG_TEXT_P(2))[0] ) ) {
             hyperloglog = hll_create(DEFAULT_NDISTINCT, DEFAULT_ERROR, PACKED);
