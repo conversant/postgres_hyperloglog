@@ -136,8 +136,5 @@ BEGIN;
         #(hyperloglog_merge(a)) 
     FROM 
         test;
-   
-    --Must run last since it throws error
-    SELECT hyperloglog_accum(i,'q') accum_bad_param FROM generate_series(1,10000) s(i);
  
 ROLLBACK;

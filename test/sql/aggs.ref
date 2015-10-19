@@ -71,7 +71,7 @@ BEGIN
     SELECT hyperloglog_accum(i,'u') accum_unpacked_sparse FROM generate_series(1,1000) s(i);
                             accum_unpacked_sparse                             
 ------------------------------------------------------------------------------
- DgYCA+gDAAC6E7ABvJqiADju0QHsyHYDfIzNAVqpbwPG7yMBzub4A1qmRwAwsLkBkPB/AvYMCAJc 
+ DgYCAegDAAC6E7ABvJqiADju0QHsyHYDfIzNAVqpbwPG7yMBzub4A1qmRwAwsLkBkPB/AvYMCAJc 
  GMYD/BfmANgQcADypTQDtlZjABI8GwKks5AArD8IAwhL5gIcLjUBNgEjAwKSJwHUHOcD5nnpAXYC 
  sQNK1jQAMgSFAywwBwEKYYUDUNOEArqDlAGSOYQA8IgRA8ySdQKmHJQC9m5qA67O0wCaPj8BKCnN 
  AdR7qgJIlnACoM2uA9BsWgGU++kDECfkASLhbgAk8UsBTHAHALLuSAE+IiYDHnIwAKBxvgL4JrED 
@@ -148,7 +148,7 @@ BEGIN
     SELECT hyperloglog_accum(i,'U') accum_unpacked_sparse FROM generate_series(1,1000) s(i);
                             accum_unpacked_sparse                             
 ------------------------------------------------------------------------------
- DgYCA+gDAAC6E7ABvJqiADju0QHsyHYDfIzNAVqpbwPG7yMBzub4A1qmRwAwsLkBkPB/AvYMCAJc 
+ DgYCAegDAAC6E7ABvJqiADju0QHsyHYDfIzNAVqpbwPG7yMBzub4A1qmRwAwsLkBkPB/AvYMCAJc 
  GMYD/BfmANgQcADypTQDtlZjABI8GwKks5AArD8IAwhL5gIcLjUBNgEjAwKSJwHUHOcD5nnpAXYC 
  sQNK1jQAMgSFAywwBwEKYYUDUNOEArqDlAGSOYQA8IgRA8ySdQKmHJQC9m5qA67O0wCaPj8BKCnN 
  AdR7qgJIlnACoM2uA9BsWgGU++kDECfkASLhbgAk8UsBTHAHALLuSAE+IiYDHnIwAKBxvgL4JrED 
@@ -1906,7 +1906,7 @@ SELECT 100000
  BwICAgMGAgMDBQQEBAQGAwQEAwMEAwMGBgIEAQMEDAoEAQIFAQQDBQMDAgUGBwIEBAQDBAIEAwQD 
  AwMDAwYBAgIEBwQGAQUCAwUBAgIDBAMDBAMFBAUCBAQGBwQDAgcDBwUGAgEDAwUDAwMDBAcEAgQG 
  BwYDAwQCAwMCAgIFBAIDBQIJAwIFBAQFBAQGAwQEBgQDAwQJCgYEAwECAwUEAgMDAwIBBQgCBAME 
- AQIEBAQCBQMHBAQCAgMEAgIDAwQBAwcFAgUBAwQDAgECAAAAAA==\x02
+ AQIEBAQCBQMHBAQCAgMEAgIDAwQBAwcFAgUBAwQDAgECAAAAAA==
 (1 row)
 
     SELECT hyperloglog_accum(i,'p') accum_packed_two_level_Agg FROM TEST_ACCUM;
@@ -2183,7 +2183,6 @@ INSERT 0 1
         2 | 2003.67360186249
 (2 rows)
 
-   
  
 ROLLBACK;
 ROLLBACK
