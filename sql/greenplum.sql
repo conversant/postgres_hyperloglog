@@ -326,7 +326,7 @@ CREATE AGGREGATE hyperloglog_accum(anyelement, real , double precision, text)
     stype = hyperloglog_estimator,
     finalfunc = hyperloglog_comp
 );
-COMMENT ON AGGREGATE hyperloglog_accum(anyelement,real,double precision,text) IS 'Accumulates anyelement into a hyperloglog_estimator of a specified capacity but and specified accuracy (variable index bits, variable bits/bucket)';
+COMMENT ON AGGREGATE hyperloglog_accum(anyelement,real,double precision,text) IS 'Accumulates anyelement into a hyperloglog_estimator of a specified capacity but and specified accuracy (variable index bits, variable bits/bucket, format U|P)';
 
 
 DROP AGGREGATE IF EXISTS hyperloglog_accum(anyelement, real);
@@ -347,7 +347,7 @@ CREATE AGGREGATE hyperloglog_accum(anyelement, real, text)
     stype = hyperloglog_estimator,
     finalfunc = hyperloglog_comp
 );
-COMMENT ON AGGREGATE hyperloglog_accum(anyelement,real,text) IS 'Accumulates anyelement into a hyperloglog_estimator of default capacity but and specified accuracy (variable index bits, 6 bits/bucket)';
+COMMENT ON AGGREGATE hyperloglog_accum(anyelement,real,text) IS 'Accumulates anyelement into a hyperloglog_estimator of default capacity but and specified accuracy (variable index bits, 6 bits/bucket, format U|P)';
 
 
 
@@ -369,7 +369,7 @@ CREATE AGGREGATE hyperloglog_accum(anyelement, text)
     stype = hyperloglog_estimator,
     finalfunc = hyperloglog_comp
 );
-COMMENT ON AGGREGATE hyperloglog_accum(anyelement,text) IS 'Accumulates anyelement into a hyperloglog_estimator of default capacity but and specified accuracy (variable index bits, 6 bits/bucket)';
+COMMENT ON AGGREGATE hyperloglog_accum(anyelement,text) IS 'Accumulates anyelement into a hyperloglog_estimator of default capacity but and specified accuracy (variable index bits, 6 bits/bucket, format U|P)';
 
 
 
