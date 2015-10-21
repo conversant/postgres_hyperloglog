@@ -328,6 +328,27 @@ CREATE AGGREGATE hyperloglog_accum(anyelement, real , double precision, text)
 );
 COMMENT ON AGGREGATE hyperloglog_accum(anyelement,real,double precision,text) IS 'Accumulates anyelement into a hyperloglog_estimator of a specified capacity but and specified accuracy (variable index bits, variable bits/bucket, format U|P)';
 
+DROP AGGREGATE IF EXISTS hyperloglog_accum_unsafe(anyelement, real , double precision);
+CREATE AGGREGATE hyperloglog_accum_unsafe(anyelement, real , double precision)
+(
+    sfunc = hyperloglog_add_item_agg,
+    prefunc = hyperloglog_merge_unsafe,
+    stype = hyperloglog_estimator,
+    finalfunc = hyperloglog_comp
+);
+COMMENT ON AGGREGATE hyperloglog_accum_unsafe(anyelement,real,double precision) IS 'Accumulates anyelement into a hyperloglog_estimator of a specified capacity but and specified accuracy (variable index bits, variable bits/bucket)';
+
+DROP AGGREGATE IF EXISTS hyperloglog_accum_unsafe(anyelement, real , double precision, text);
+CREATE AGGREGATE hyperloglog_accum_unsafe(anyelement, real , double precision, text)
+(
+    sfunc = hyperloglog_add_item_agg,
+    prefunc = hyperloglog_merge_unsafe,
+    stype = hyperloglog_estimator,
+    finalfunc = hyperloglog_comp
+);
+COMMENT ON AGGREGATE hyperloglog_accum_unsafe(anyelement,real,double precision,text) IS 'Accumulates anyelement into a hyperloglog_estimator of a specified capacity but and specified accuracy (variable index bits, variable bits/bucket, format U|P)';
+
+
 
 DROP AGGREGATE IF EXISTS hyperloglog_accum(anyelement, real);
 CREATE AGGREGATE hyperloglog_accum(anyelement, real)
@@ -349,6 +370,25 @@ CREATE AGGREGATE hyperloglog_accum(anyelement, real, text)
 );
 COMMENT ON AGGREGATE hyperloglog_accum(anyelement,real,text) IS 'Accumulates anyelement into a hyperloglog_estimator of default capacity but and specified accuracy (variable index bits, 6 bits/bucket, format U|P)';
 
+DROP AGGREGATE IF EXISTS hyperloglog_accum_unsafe(anyelement, real);
+CREATE AGGREGATE hyperloglog_accum_unsafe(anyelement, real)
+(
+    sfunc = hyperloglog_add_item_agg_error,
+    prefunc = hyperloglog_merge_unsafe,
+    stype = hyperloglog_estimator,
+    finalfunc = hyperloglog_comp
+);
+COMMENT ON AGGREGATE hyperloglog_accum_unsafe(anyelement,real) IS 'Accumulates anyelement into a hyperloglog_estimator of default capacity but and specified accuracy (variable index bits, 6 bits/bucket)';
+
+DROP AGGREGATE IF EXISTS hyperloglog_accum_unsafe(anyelement, real, text);
+CREATE AGGREGATE hyperloglog_accum_unsafe(anyelement, real, text)
+(
+    sfunc = hyperloglog_add_item_agg_error,
+    prefunc = hyperloglog_merge_unsafe,
+    stype = hyperloglog_estimator,
+    finalfunc = hyperloglog_comp
+);
+COMMENT ON AGGREGATE hyperloglog_accum_unsafe(anyelement,real,text) IS 'Accumulates anyelement into a hyperloglog_estimator of default capacity but and specified accuracy (variable index bits, 6 bits/bucket, format U|P)';
 
 
 DROP AGGREGATE IF EXISTS hyperloglog_accum(anyelement);
@@ -371,6 +411,25 @@ CREATE AGGREGATE hyperloglog_accum(anyelement, text)
 );
 COMMENT ON AGGREGATE hyperloglog_accum(anyelement,text) IS 'Accumulates anyelement into a hyperloglog_estimator of default capacity but and specified accuracy (variable index bits, 6 bits/bucket, format U|P)';
 
+DROP AGGREGATE IF EXISTS hyperloglog_accum_unsafe(anyelement);
+CREATE AGGREGATE hyperloglog_accum_unsafe(anyelement)
+(
+    sfunc = hyperloglog_add_item_agg_default,
+    prefunc = hyperloglog_merge_unsafe,
+    stype = hyperloglog_estimator,
+    finalfunc = hyperloglog_comp
+);
+COMMENT ON AGGREGATE hyperloglog_accum_unsafe(anyelement) IS 'Accumulates anyelement into a hyperloglog_estimator of default size (14 index bits, 6 bits/bucket)';
+
+DROP AGGREGATE IF EXISTS hyperloglog_accum_unsafe(anyelement, text);
+CREATE AGGREGATE hyperloglog_accum_unsafe(anyelement, text)
+(
+    sfunc = hyperloglog_add_item_agg_default,
+    prefunc = hyperloglog_merge_unsafe,
+    stype = hyperloglog_estimator,
+    finalfunc = hyperloglog_comp
+);
+COMMENT ON AGGREGATE hyperloglog_accum_unsafe(anyelement,text) IS 'Accumulates anyelement into a hyperloglog_estimator of default capacity but and specified accuracy (variable index bits, 6 bits/bucket, format U|P)';
 
 
 -- mirror real sum function
@@ -405,6 +464,17 @@ CREATE AGGREGATE hyperloglog_merge(hyperloglog_estimator)
     finalfunc = hyperloglog_comp
 );
 COMMENT ON AGGREGATE hyperloglog_merge(hyperloglog_estimator) IS 'Merges/unions hyperloglog_estimators into a unified estimator';
+
+-- merges all the counters into just a single one (e.g. after running hyperloglog_accum)
+DROP AGGREGATE IF EXISTS hyperloglog_merge_unsafe(hyperloglog_estimator);
+CREATE AGGREGATE hyperloglog_merge_unsafe(hyperloglog_estimator)
+(
+    sfunc = hyperloglog_merge_unsafe,
+    prefunc = hyperloglog_merge_unsafe,
+    stype = hyperloglog_estimator,
+    finalfunc = hyperloglog_comp
+);
+COMMENT ON AGGREGATE hyperloglog_merge_unsafe(hyperloglog_estimator) IS 'Merges/unions hyperloglog_estimators into a unified estimator';
 
 -- evaluates the estimate (for an estimator)
 CREATE OPERATOR # (
