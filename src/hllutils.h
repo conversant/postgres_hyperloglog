@@ -1,5 +1,6 @@
 #ifndef HLLUTILS_H
 #define HLLUTILS_H
+#define POW2(a) (1 << (a))
 
 /* ---------------------- function declarations ------------------------ */
 void insertion_sort(uint32_t* a, int n);

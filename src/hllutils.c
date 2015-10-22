@@ -112,5 +112,5 @@ dedupe(uint32_t * sparse_data, int idx)
 int 
 size_sparse_array(int8_t b)
 {
-    return  pow(2,b-4) - ceil(sizeof(HLLData)/4.0);
+    return  POW2(b-4) - ceil(sizeof(HLLData)/4.0);
 }

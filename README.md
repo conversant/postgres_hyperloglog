@@ -39,6 +39,7 @@ The extension provides the following elements
     * `hyperloglog_merge(counter1 hyperloglog_estimator, counter2 hyperloglog_estimator)`
     * `hyperloglog_comp(counter hyperloglog_estimator)`
     * `hyperloglog_decomp(counter hyperloglog_estimator)`
+    * `hyperloglog_unpack(counter hyperloglog_estimator)`
     * `hyperloglog_info(counter hyperloglog_estimator)`
     * `hyperloglog_info()`
     * `hyperloglog_update(counter hyperloglog_estimator)`
@@ -47,16 +48,25 @@ The extension provides the following elements
 
 * aggregate functions 
 
-    * `hyperloglog_distinct(anyelement, real, double precision)`
-    * `hyperloglog_distinct(anyelement, real)`
-    * `hyperloglog_distinct(anyelement)`
-    * `hyperloglog_accum(anyelement, real, double precision)`
-    * `hyperloglog_accum(anyelement, real)`
-    * `hyperloglog_accum(anyelement)`
-    * `sum(counter hyperloglog_estimator)`
-    * `hyperloglog_merge(counter hyperloglog_estimator)`
+    * `hyperloglog_distinct(anyelement, error_rate real, ndistinct double precision)` - Returns: double precision
+    * `hyperloglog_distinct(anyelement, error_rate real)` - Returns: double precision
+    * `hyperloglog_distinct(anyelement)` - Returns: double precision
+    * `hyperloglog_accum(anyelement, error_rate real, ndistinct double precision)` - Returns: hyperloglog_estimator
+    * `hyperloglog_accum(anyelement, error_rate real)` - Returns: hyperloglog_estimator
+    * `hyperloglog_accum(anyelement)` - Returns: hyperloglog_estimator
+    * `hyperloglog_accum(anyelement, error_rate real, ndistinct double precision, format text)` - Returns: hyperloglog_estimator
+    * `hyperloglog_accum(anyelement, error_rate real, format text)` - Returns: hyperloglog_estimator
+    * `hyperloglog_accum(anyelement, format text)` - Returns: hyperloglog_estimator
+    * `sum(counter hyperloglog_estimator)` - Returns: bigint
+    * `hyperloglog_merge(counter hyperloglog_estimator)` - Returns: hyperloglog_estimator
 
-	The 1-parameter version uses default error rate 0.8215% and default ndistinct of 2^63. The 2-parameter version allows the user to specify an error rate and the 3-paramater version allows the user to specify and error rate and a ndistinct.
+    NOTE: some aggregates feature an 'unsafe' version, these are an optimized version of the aggregate that does not support use repeated use in the same SELECT statement or in UNION/UNION ALL queries
+
+* Parameters
+
+    * `error_rate` - Error rate for the constructed estimator - Valid values 0..1 (Default: 0.008215) (Can only be set during initial creation)
+    * `ndistinct` - Number of distinct values to support in the estimator (Default: 2^63) (Can only be set during initial creation)
+    * `format` - Format of the resulting counter (bitpacked compressed or unpacked) - Valid values P,U (Default: P) (Once set on a "column" it will retain this setting in all other operations unless explicitly changed)
 
 * operators
 

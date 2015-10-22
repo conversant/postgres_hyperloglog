@@ -1,5 +1,5 @@
 MODULE_big = hyperloglog_counter
-OBJS = src/hyperloglog_counter.o src/hyperloglog.o src/upgrade.o src/hllutils.o
+OBJS = src/hyperloglog_counter.o src/hyperloglog.o src/upgrade.o src/hllutils.o src/encoding.o
 
 EXTENSION = hyperloglog_counter
 DATA = sql/greenplum.sql sql/postgres.sql

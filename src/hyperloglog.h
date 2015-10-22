@@ -58,6 +58,10 @@
 #define PRECISION_5_MAX_INTERPOLATION_POINTS 159
 #define PRECISION_4_MAX_INTERPOLATION_POINTS 79
 #define STRUCT_VERSION 2
+#define PACKED 0
+#define PACKED_UNPACKED 1
+#define UNPACKED 2
+#define UNPACKED_UNPACKED 3
 
 #define HLL_DENSE_GET_REGISTER(target,p,regnum,hll_bits) do { \
     uint8_t *_p = (uint8_t*) p; \
@@ -100,7 +104,11 @@ typedef struct HLLData {
 
     /* Used to indicate the version of the struct to allow further
      * modification in the future */
-    uint16_t version;
+    uint8_t version;
+
+    /* Used to specify the format of the counter (currently 0 - bitpacked
+     * 1 - unpacked */
+    uint8_t format; 
    
     /* The current index of the sparse encoded data array. Also when -1 used
      * as a flag for dense encoded counters */
@@ -119,7 +127,7 @@ typedef HLLData * HLLCounter;
 
 /* creates an optimal bitmap able to count a multiset with the expected
  * cardinality and the given error rate. */
-HLLCounter hll_create(double ndistinct, float error);
+HLLCounter hll_create(double ndistinct, float error, uint8_t format);
 
 /* Helper function to return the size of a fully populated counter with
  * the given parameters. */
@@ -133,7 +141,7 @@ HLLCounter hll_copy(HLLCounter counter);
 
 /* Merges two counters into one. The final counter can either be a modified 
  * counter1 or completely new copy. */
-HLLCounter hll_merge(HLLCounter counter1, HLLCounter counter2, short inplace);
+HLLCounter hll_merge(HLLCounter counter1, HLLCounter counter2);
 
 /* add element existence */
 HLLCounter hll_add_element(HLLCounter hloglog, const char * element, int elen);
@@ -147,5 +155,6 @@ void hll_reset_internal(HLLCounter hloglog);
 /* data compression/decompression */
 HLLCounter hll_compress(HLLCounter hloglog);
 HLLCounter hll_decompress(HLLCounter hloglog);
+HLLCounter hll_unpack(HLLCounter hloglog);
 
 #endif // #ifndef _HYPERLOGLOG_H_
