@@ -297,9 +297,9 @@ hyperloglog_add_item_agg_pack(PG_FUNCTION_ARGS)
         if ((errorRate <= 0) || (errorRate > 1))
             elog(ERROR, "error rate has to be between 0 and 1");
 
-        if (!PG_ARGISNULL(4) && ('u' == VARDATA(PG_GETARG_TEXT_P(4))[0] || 'U'  == VARDATA(PG_GETARG_TEXT_P(4))[0] )){
+        if (!PG_ARGISNULL(4) && ('u' == VARDATA_ANY(PG_GETARG_TEXT_P(4))[0] || 'U'  == VARDATA_ANY(PG_GETARG_TEXT_P(4))[0] )){
             hyperloglog = hll_create(ndistinct, errorRate, PACKED_UNPACKED);
-        } else if (!PG_ARGISNULL(4) && ('p' == VARDATA(PG_GETARG_TEXT_P(4))[0] || 'P'  == VARDATA(PG_GETARG_TEXT_P(4))[0] ) ) {
+        } else if (!PG_ARGISNULL(4) && ('p' == VARDATA_ANY(PG_GETARG_TEXT_P(4))[0] || 'P'  == VARDATA_ANY(PG_GETARG_TEXT_P(4))[0] ) ) {
             hyperloglog = hll_create(ndistinct, errorRate, PACKED);
         } else {
             elog(ERROR,"ERROR: Improper format specification! Must be U or P");
@@ -442,9 +442,9 @@ hyperloglog_add_item_agg_error_pack(PG_FUNCTION_ARGS)
         if ((errorRate <= 0) || (errorRate > 1))
             elog(ERROR, "error rate has to be between 0 and 1");
 
-        if (!PG_ARGISNULL(3) && ('u' == VARDATA(PG_GETARG_TEXT_P(3))[0] || 'U'  == VARDATA(PG_GETARG_TEXT_P(3))[0] )){
+        if (!PG_ARGISNULL(3) && ('u' == VARDATA_ANY(PG_GETARG_TEXT_P(3))[0] || 'U'  == VARDATA_ANY(PG_GETARG_TEXT_P(3))[0] )){
             hyperloglog = hll_create(DEFAULT_NDISTINCT, errorRate, PACKED_UNPACKED);
-        } else if (!PG_ARGISNULL(3) && ('p' == VARDATA(PG_GETARG_TEXT_P(3))[0] || 'P'  == VARDATA(PG_GETARG_TEXT_P(3))[0] ) ) {
+        } else if (!PG_ARGISNULL(3) && ('p' == VARDATA_ANY(PG_GETARG_TEXT_P(3))[0] || 'P'  == VARDATA_ANY(PG_GETARG_TEXT_P(3))[0] ) ) {
             hyperloglog = hll_create(DEFAULT_NDISTINCT, errorRate, PACKED);
         } else {
             elog(ERROR,"ERROR: Improper format specification! Must be U or P");
@@ -572,9 +572,9 @@ hyperloglog_add_item_agg_default_pack(PG_FUNCTION_ARGS)
     if (PG_ARGISNULL(0) && PG_ARGISNULL(1)){
         PG_RETURN_NULL();
     } else if (PG_ARGISNULL(0)) {
-        if (!PG_ARGISNULL(2) && ('u' == VARDATA(PG_GETARG_TEXT_P(2))[0] || 'U'  == VARDATA(PG_GETARG_TEXT_P(2))[0] )){
+        if (!PG_ARGISNULL(2) && ('u' == VARDATA_ANY(PG_GETARG_TEXT_P(2))[0] || 'U'  == VARDATA_ANY(PG_GETARG_TEXT_P(2))[0] )){
             hyperloglog = hll_create(DEFAULT_NDISTINCT, DEFAULT_ERROR, PACKED_UNPACKED);
-        } else if (!PG_ARGISNULL(2) && ('p' == VARDATA(PG_GETARG_TEXT_P(2))[0] || 'P'  == VARDATA(PG_GETARG_TEXT_P(2))[0] ) ) {
+        } else if (!PG_ARGISNULL(2) && ('p' == VARDATA_ANY(PG_GETARG_TEXT_P(2))[0] || 'P'  == VARDATA_ANY(PG_GETARG_TEXT_P(2))[0] ) ) {
             hyperloglog = hll_create(DEFAULT_NDISTINCT, DEFAULT_ERROR, PACKED);
         } else {
         elog(ERROR,"ERROR: Improper format specification! Must be U or P");
@@ -816,7 +816,7 @@ hyperloglog_size(PG_FUNCTION_ARGS)
 Datum
 hyperloglog_length(PG_FUNCTION_ARGS)
 {
-    PG_RETURN_INT32(VARSIZE(PG_GETARG_HLL_P(0)));
+    PG_RETURN_INT32(VARSIZE_ANY(PG_GETARG_HLL_P(0)));
 }
 
 Datum
@@ -829,14 +829,14 @@ hyperloglog_reset(PG_FUNCTION_ARGS)
 Datum
 hyperloglog_out(PG_FUNCTION_ARGS)
 {
-    int datalen, resultlen, res;
-    char *result;
-    bytea       *data = PG_GETARG_BYTEA_P(0);
+    int16   datalen, resultlen, res;
+    char     *result;
+    bytea    *data = PG_GETARG_BYTEA_P(0);
 
-    datalen = VARSIZE(data) - VARHDRSZ;
-    resultlen = b64_enc_len(VARDATA(data), datalen);
+    datalen = VARSIZE_ANY_EXHDR(data);
+    resultlen = b64_enc_len(VARDATA_ANY(data), datalen);
     result = palloc(VARHDRSZ + resultlen);
-    res = hll_b64_encode(VARDATA(data),datalen, result);
+    res = hll_b64_encode(VARDATA_ANY(data),datalen, result);
     
     /* Make this FATAL 'cause we've trodden on memory ... */
     if (res > resultlen)
@@ -849,14 +849,14 @@ hyperloglog_out(PG_FUNCTION_ARGS)
 Datum
 hyperloglog_in(PG_FUNCTION_ARGS)
 {
-    bytea       *result;
+    bytea      *result;
     text       *data = PG_GETARG_TEXT_P(0);
-    int            datalen, resultlen, res;
+    int16      datalen, resultlen, res;
 
-    datalen = VARSIZE(data) - VARHDRSZ;
-    resultlen = b64_dec_len(VARDATA(data),datalen);
+    datalen = VARSIZE_ANY_EXHDR(data);
+    resultlen = b64_dec_len(VARDATA_ANY(data),datalen);
     result = palloc(VARHDRSZ + resultlen);
-    res = hll_b64_decode(VARDATA(data), datalen, VARDATA(result));
+    res = hll_b64_decode(VARDATA_ANY(data), datalen, VARDATA_ANY(result));
 
     /* Make this FATAL 'cause we've trodden on memory ... */
     if (res > resultlen)
@@ -984,7 +984,7 @@ hyperloglog_info(PG_FUNCTION_ARGS)
         snprintf(format, 9, "unpacked");
     }
 
-    snprintf(out, 500, "Counter Summary\nstruct version: %d\nsize on disk (bytes): %d\nbits per bin: %d\nindex bits: %d\nnumber of bins: %d\ncompressed?: %s\nencoding: %s\nformat: %s\n--------------------------", hyperloglog->version, VARSIZE(hyperloglog), hyperloglog->binbits, corrected_b, (int)pow(2, corrected_b), comp, enc, format);
+    snprintf(out, 500, "Counter Summary\nstruct version: %d\nsize on disk (bytes): %ld\nbits per bin: %d\nindex bits: %d\nnumber of bins: %d\ncompressed?: %s\nencoding: %s\nformat: %s\n--------------------------", hyperloglog->version, VARSIZE_ANY(hyperloglog), hyperloglog->binbits, corrected_b, (int)pow(2, corrected_b), comp, enc, format);
 
     PG_RETURN_TEXT_P(cstring_to_text(out));
 }
