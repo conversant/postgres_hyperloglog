@@ -816,7 +816,7 @@ hyperloglog_size(PG_FUNCTION_ARGS)
 Datum
 hyperloglog_length(PG_FUNCTION_ARGS)
 {
-    PG_RETURN_INT32(VARSIZE(PG_GETARG_HLL_P(0)));
+    PG_RETURN_INT32(VARSIZE_ANY(PG_GETARG_HLL_P(0)));
 }
 
 Datum
@@ -833,7 +833,7 @@ hyperloglog_out(PG_FUNCTION_ARGS)
     char *result;
     bytea       *data = PG_GETARG_BYTEA_P(0);
 
-    datalen = VARSIZE(data) - VARHDRSZ;
+    datalen = VARSIZE_ANY_EXHDR(data);
     resultlen = b64_enc_len(VARDATA(data), datalen);
     result = palloc(VARHDRSZ + resultlen);
     res = hll_b64_encode(VARDATA(data),datalen, result);
@@ -853,7 +853,7 @@ hyperloglog_in(PG_FUNCTION_ARGS)
     text       *data = PG_GETARG_TEXT_P(0);
     int            datalen, resultlen, res;
 
-    datalen = VARSIZE(data) - VARHDRSZ;
+    datalen = VARSIZE_ANY_EXHDR(data);
     resultlen = b64_dec_len(VARDATA(data),datalen);
     result = palloc(VARHDRSZ + resultlen);
     res = hll_b64_decode(VARDATA(data), datalen, VARDATA(result));
@@ -984,7 +984,7 @@ hyperloglog_info(PG_FUNCTION_ARGS)
         snprintf(format, 9, "unpacked");
     }
 
-    snprintf(out, 500, "Counter Summary\nstruct version: %d\nsize on disk (bytes): %d\nbits per bin: %d\nindex bits: %d\nnumber of bins: %d\ncompressed?: %s\nencoding: %s\nformat: %s\n--------------------------", hyperloglog->version, VARSIZE(hyperloglog), hyperloglog->binbits, corrected_b, (int)pow(2, corrected_b), comp, enc, format);
+    snprintf(out, 500, "Counter Summary\nstruct version: %d\nsize on disk (bytes): %d\nbits per bin: %d\nindex bits: %d\nnumber of bins: %d\ncompressed?: %s\nencoding: %s\nformat: %s\n--------------------------", hyperloglog->version, VARSIZE_ANY(hyperloglog), hyperloglog->binbits, corrected_b, (int)pow(2, corrected_b), comp, enc, format);
 
     PG_RETURN_TEXT_P(cstring_to_text(out));
 }
