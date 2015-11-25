@@ -95,12 +95,12 @@ CREATE FUNCTION hyperloglog_init(error_rate real,ndistinct double precision) RET
 
 -- merges the second estimator into a copy of the first one
 CREATE FUNCTION hyperloglog_merge(estimator1 hyperloglog_estimator, estimator2 hyperloglog_estimator) RETURNS hyperloglog_estimator
-     AS '$libdir/hyperloglog_counter', 'hyperloglog_merge_simple'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_merge'
      LANGUAGE C IMMUTABLE;
 
 -- merges (inplace) the second estimator into the first one
 CREATE FUNCTION hyperloglog_merge_agg(estimator1 hyperloglog_estimator, estimator2 hyperloglog_estimator) RETURNS hyperloglog_estimator
-     AS '$libdir/hyperloglog_counter', 'hyperloglog_merge_agg'
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_merge'
      LANGUAGE C IMMUTABLE;
 
 -- add an item to the estimator
