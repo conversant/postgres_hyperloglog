@@ -835,13 +835,14 @@ hyperloglog_out(PG_FUNCTION_ARGS)
 
     datalen = VARSIZE_ANY_EXHDR(data);
     resultlen = b64_enc_len(VARDATA_ANY(data), datalen);
-    result = palloc(VARHDRSZ + resultlen);
+    result = palloc(resultlen + 1);
     res = hll_b64_encode(VARDATA_ANY(data),datalen, result);
     
     /* Make this FATAL 'cause we've trodden on memory ... */
     if (res > resultlen)
         elog(FATAL, "overflow - encode estimate too small");
 
+    result[res] = '\0';
 
     PG_RETURN_CSTRING(result);
 }
