@@ -851,13 +851,13 @@ Datum
 hyperloglog_in(PG_FUNCTION_ARGS)
 {
     bytea      *result;
-    text       *data = PG_GETARG_TEXT_P(0);
+    char       *data = PG_GETARG_CSTRING(0);
     int16      datalen, resultlen, res;
 
-    datalen = VARSIZE_ANY_EXHDR(data);
-    resultlen = b64_dec_len(VARDATA_ANY(data),datalen);
+    datalen = strlen(data);
+    resultlen = b64_dec_len(data,datalen);
     result = palloc(VARHDRSZ + resultlen);
-    res = hll_b64_decode(VARDATA_ANY(data), datalen, VARDATA_ANY(result));
+    res = hll_b64_decode(data, datalen, VARDATA(result));
 
     /* Make this FATAL 'cause we've trodden on memory ... */
     if (res > resultlen)

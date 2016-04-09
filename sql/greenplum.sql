@@ -39,6 +39,16 @@ CREATE CAST (bytea as hyperloglog_estimator) WITHOUT FUNCTION AS ASSIGNMENT;
 -- allow cast from bytea to hyperloglog_estimator
 CREATE CAST (hyperloglog_estimator as bytea) WITHOUT FUNCTION AS ASSIGNMENT;
 
+CREATE OR REPLACE FUNCTION hyperloglog_to_text(hyperloglog_estimator) RETURNS text
+AS $$ select pg_catalog.encode($1::bytea, 'base64'); $$ LANGUAGE SQL IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION hyperloglog_from_text(text) RETURNS hyperloglog_estimator
+AS $$ select pg_catalog.decode($1, 'base64')::hyperloglog_estimator; $$ LANGUAGE SQL IMMUTABLE;
+
+CREATE CAST (hyperloglog_estimator as text) WITH FUNCTION hyperloglog_to_text(hyperloglog_estimator);
+
+CREATE CAST (text as hyperloglog_estimator) WITH FUNCTION hyperloglog_from_text(text);
+
 /* compress/decompress inner data funcitons */
 CREATE OR REPLACE FUNCTION hyperloglog_comp(counter hyperloglog_estimator) RETURNS hyperloglog_estimator
      AS '$libdir/hyperloglog_counter', 'hyperloglog_comp'
