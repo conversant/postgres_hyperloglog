@@ -232,7 +232,7 @@ HLLCounter
 hll_copy(HLLCounter counter)
 {
     
-    size_t length = VARSIZE(counter);
+    size_t length = VARSIZE_ANY(counter);
     HLLCounter copy = (HLLCounter)palloc(length);
     
     memcpy(copy, counter, length);
@@ -852,7 +852,7 @@ void
 hll_reset_internal(HLLCounter hloglog)
 {
 
-    memset(hloglog->data, 0, VARSIZE(hloglog) - sizeof(HLLData) );
+    memset(hloglog->data, 0, VARSIZE_ANY(hloglog) - sizeof(HLLData) );
 
 }
 
@@ -981,7 +981,7 @@ hll_compress_dense(HLLCounter hloglog)
     /* lz_compress the normalized array and copy that data into hloglog->data
      * if any compression was acheived */
     pglz_compress(data,m,dest,PGLZ_strategy_always);
-    if (VARSIZE(dest) >= (m * hloglog->binbits /8) ){
+    if (VARSIZE_ANY(dest) >= (m * hloglog->binbits /8) ){
 	/* free allocated memory and return unaltered array */
     	if (dest){
             free(dest);
@@ -991,11 +991,11 @@ hll_compress_dense(HLLCounter hloglog)
     	}
     	return hloglog;
     }
-    memcpy(hloglog->data,dest,VARSIZE(dest));
+    memcpy(hloglog->data,dest,VARSIZE_ANY(dest));
 
     /* resize the counter to only encompass the compressed data and the struct
      *  overhead*/
-    SET_VARSIZE(hloglog,sizeof(HLLData) + VARSIZE(dest) );
+    SET_VARSIZE(hloglog,sizeof(HLLData) + VARSIZE_ANY(dest) );
 
     /* invert the b value so it being < 0 can be used as a compression flag */
     hloglog->b = -1 * (hloglog->b);
@@ -1040,18 +1040,18 @@ hll_compress_dense_unpacked(HLLCounter hloglog)
 	/* lz_compress the normalized array and copy that data into hloglog->data
 	* if any compression was acheived */
 	pglz_compress(hloglog->data, m, dest, PGLZ_strategy_always);
-	if (VARSIZE(dest) >= (m * hloglog->binbits / 8)){
+	if (VARSIZE_ANY(dest) >= (m * hloglog->binbits / 8)){
 		/* free allocated memory and return unaltered array */
 		if (dest){
 			free(dest);
 		}
 		return hloglog;
 	}
-	memcpy(hloglog->data, dest, VARSIZE(dest));
+	memcpy(hloglog->data, dest, VARSIZE_ANY(dest));
 
 	/* resize the counter to only encompass the compressed data and the struct
 	*  overhead*/
-	SET_VARSIZE(hloglog, sizeof(HLLData) + VARSIZE(dest));
+	SET_VARSIZE(hloglog, sizeof(HLLData) + VARSIZE_ANY(dest));
 
 	/* invert the b value so it being < 0 can be used as a compression flag */
 	hloglog->b = -1 * (hloglog->b);
@@ -1206,7 +1206,7 @@ hll_decompress_sparse(HLLCounter hloglog)
         
         length = POW2(hloglog->b-2);
         htemp = palloc0(length);
-        memcpy(htemp,hloglog,VARSIZE(hloglog));
+        memcpy(htemp,hloglog,VARSIZE_ANY(hloglog));
         hloglog = htemp;
 
         SET_VARSIZE(hloglog,length);

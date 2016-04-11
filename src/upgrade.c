@@ -142,7 +142,7 @@ hll_decompress_sparse_V1(HLLCounter hloglog)
     length = pow(2,(hloglog->b-2));
 
     htemp = palloc0(length);
-    memcpy(htemp,hloglog,VARSIZE(hloglog));
+    memcpy(htemp,hloglog,VARSIZE_ANY(hloglog));
     hloglog = htemp;
 
     SET_VARSIZE(hloglog,length);
