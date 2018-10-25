@@ -9,7 +9,7 @@
 #include <string.h>
 
 #include "postgres.h"
-#include "utils/pg_lzcompress.h"
+#include "compress.h"
 
 #include "varint.h"
 #include "hyperloglog.h"
@@ -152,7 +152,7 @@ hll_decompress_dense_unpacked(HLLCounter hloglog)
 	memcpy(htemp, hloglog, sizeof(HLLData));
 
 	/* decompress the data */
-	pglz_decompress((PGLZ_Header *)hloglog->data,(char *) &htemp->data);
+	pglz_decompress((PGLZ_Header *)hloglog->data, sizeof((char *) &htemp->data), (char *) &htemp->data, sizeof(htemp));
 
 	hloglog = htemp;
 
@@ -1158,7 +1158,7 @@ hll_decompress_dense(HLLCounter hloglog)
     memset(dest,0,m);
 
     /* decompress the data */
-    pglz_decompress((PGLZ_Header *)hloglog->data,dest);
+    pglz_decompress((PGLZ_Header *)hloglog->data, sizeof(dest), dest, sizeof(dest));
 
     /* copy the struct internals but not the data into a counter with enough 
      * space for the uncompressed data  */
