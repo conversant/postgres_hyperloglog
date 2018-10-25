@@ -101,7 +101,11 @@ hll_decompress_dense_V1(HLLCounter hloglog)
     memset(dest,0,m);
 
     /* decompress the data */
-    pglz_decompress((PGLZ_Header *)hloglog->data, sizeof(dest), dest, sizeof(dest));
+    #if PG_VERSION_NUM >= 90500
+        pglz_decompress((PGLZ_Header *)hloglog->data, sizeof((char *) &htemp->data), (char *) &htemp->data, sizeof(htemp));
+    #else
+        pglz_decompress((PGLZ_Header *)hloglog->data,(char *) &htemp->data);
+    #endif
 
     /* copy the struct internals but not the data into a counter with enough
      * space for the uncompressed data  */
