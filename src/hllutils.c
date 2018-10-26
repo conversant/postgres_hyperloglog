@@ -114,3 +114,13 @@ size_sparse_array(int8_t b)
 {
     return  POW2(b-4) - ceil(sizeof(HLLData)/4.0);
 }
+
+/* Decompresses hll counter */
+void pg_decompress(PGLZ_Header *data, HLLCounter htemp) 
+{
+    #if PG_VERSION_NUM >= 90500
+        pglz_decompress(data, sizeof((char *) htemp->data), (char *) htemp->data, sizeof(htemp));
+    #else
+        pglz_decompress(data,(char *) htemp->data);
+    #endif
+}
