@@ -115,12 +115,35 @@ size_sparse_array(int8_t b)
     return  POW2(b-4) - ceil(sizeof(HLLData)/4.0);
 }
 
-/* Decompresses hll counter */
-void pg_decompress(PGLZ_Header *data, HLLCounter htemp) 
+/* PGLZ Decompress wrapper for verison compatability */
+void pg_decompress(const PGLZ_Header *source, char *dest)
 {
     #if PG_VERSION_NUM >= 90500
-        pglz_decompress(data, sizeof((char *) htemp->data), (char *) htemp->data, sizeof(htemp));
+        const char *sp;
+        int32 slen;
+
+        sp = (const char *) (((const unsigned char *) source) + sizeof(PGLZ_Header));
+        slen = VARSIZE(source);
+        pglz_decompress(sp, slen, dest, source->rawsize);
     #else
-        pglz_decompress(data,(char *) htemp->data);
+        pglz_decompress(source, dest);
+    #endif
+}
+
+/* PGLZ Compress wrapper for verison compatability */
+bool pg_compress(const char *source, int32 slen, PGLZ_Header *dest, const PGLZ_Strategy *strategy) {
+    #if PG_VERSION_NUM >= 90500
+        char *bp;
+	int32 size;
+
+	bp = (char *) (((unsigned char *) dest) + sizeof(PGLZ_Header));
+	size = pglz_compress(source, slen, bp, strategy);
+	if (size >= 0) {
+	    SET_VARSIZE_COMPRESSED(dest, size + sizeof(PGLZ_Header));
+	    return true;
+	} else
+	    return false;
+    #else
+        return pglz_compress(source, slen, dest, strategy);
     #endif
 }

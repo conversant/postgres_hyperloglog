@@ -100,7 +100,7 @@ hll_decompress_dense_V1(HLLCounter hloglog)
     memset(dest,0,m);
 
     /* decompress the data */
-    pg_decompress((PGLZ_Header *)hloglog->data, htemp);
+    pg_decompress((PGLZ_Header *)hloglog->data,dest);
 
     /* copy the struct internals but not the data into a counter with enough
      * space for the uncompressed data  */
