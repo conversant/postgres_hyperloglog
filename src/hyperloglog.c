@@ -151,8 +151,8 @@ hll_decompress_dense_unpacked(HLLCounter hloglog)
 	memcpy(htemp, hloglog, sizeof(HLLData));
 
 	/* decompress the data */
-        pg_decompress((PGLZ_Header *)hloglog->data,(char *) htemp->data);
-	
+	pg_decompress((PGLZ_Header *)hloglog->data,(char *) htemp->data);
+
 	hloglog = htemp;
 
 	/* set the varsize to the appropriate length  */

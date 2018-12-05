@@ -138,6 +138,8 @@ bool pg_compress(const char *source, int32 slen, PGLZ_Header *dest, const PGLZ_S
 
 	bp = (char *) (((unsigned char *) dest) + sizeof(PGLZ_Header));
 	size = pglz_compress(source, slen, bp, strategy);
+	dest->rawsize = slen;
+
 	if (size >= 0) {
 	    SET_VARSIZE_COMPRESSED(dest, size + sizeof(PGLZ_Header));
 	    return true;

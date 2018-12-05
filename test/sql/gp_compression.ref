@@ -35,7 +35,7 @@ BEGIN
     SELECT length(hyperloglog_accum(i)) dense_length from generate_series(1,1021) s(i);
  dense_length 
 --------------
-         2133
+         2128
 (1 row)
 
     SELECT length(hyperloglog_accum(i)) dense_length1 from generate_series(1,10000) s(i);
