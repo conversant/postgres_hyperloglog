@@ -9,7 +9,6 @@
 #include <string.h>
 
 #include "postgres.h"
-#include "utils/pg_lzcompress.h"
 
 #include "varint.h"
 #include "hyperloglog.h"
@@ -152,7 +151,7 @@ hll_decompress_dense_unpacked(HLLCounter hloglog)
 	memcpy(htemp, hloglog, sizeof(HLLData));
 
 	/* decompress the data */
-	pglz_decompress((PGLZ_Header *)hloglog->data,(char *) &htemp->data);
+	pg_decompress((PGLZ_Header *)hloglog->data,(char *) htemp->data);
 
 	hloglog = htemp;
 
@@ -781,7 +780,7 @@ sparse_to_dense_unpacked(HLLCounter hloglog)
 	uint32_t * sparse_data;
 	uint32_t idx;
 	uint8_t rho;
-	int i, m = POW2(hloglog->b);
+	int i, maxidx, m = POW2(hloglog->b);
 
 	if (hloglog->idx == -1){
 		return hloglog;
@@ -809,7 +808,7 @@ sparse_to_dense_unpacked(HLLCounter hloglog)
 	memcpy(htemp, hloglog, sizeof(HLLData));
 	hloglog = htemp;
 	memset(hloglog->data, 0, m);
-	int maxidx = hloglog->idx;
+	maxidx = hloglog->idx;
 
 	for (i = 0; i < maxidx; i++){
 		idx = sparse_data[i];
@@ -980,7 +979,7 @@ hll_compress_dense(HLLCounter hloglog)
 
     /* lz_compress the normalized array and copy that data into hloglog->data
      * if any compression was acheived */
-    pglz_compress(data,m,dest,PGLZ_strategy_always);
+    pg_compress(data,m,dest,PGLZ_strategy_always);
     if (VARSIZE_ANY(dest) >= (m * hloglog->binbits /8) ){
 	/* free allocated memory and return unaltered array */
     	if (dest){
@@ -1039,7 +1038,7 @@ hll_compress_dense_unpacked(HLLCounter hloglog)
 
 	/* lz_compress the normalized array and copy that data into hloglog->data
 	* if any compression was acheived */
-	pglz_compress(hloglog->data, m, dest, PGLZ_strategy_always);
+	pg_compress(hloglog->data, m, dest, PGLZ_strategy_always);
 	if (VARSIZE_ANY(dest) >= (m * hloglog->binbits / 8)){
 		/* free allocated memory and return unaltered array */
 		if (dest){
@@ -1158,7 +1157,7 @@ hll_decompress_dense(HLLCounter hloglog)
     memset(dest,0,m);
 
     /* decompress the data */
-    pglz_decompress((PGLZ_Header *)hloglog->data,dest);
+    pg_decompress((PGLZ_Header *)hloglog->data,dest);
 
     /* copy the struct internals but not the data into a counter with enough 
      * space for the uncompressed data  */
@@ -1222,4 +1221,3 @@ hll_decompress_sparse(HLLCounter hloglog)
     
     return hloglog;
 }
-

@@ -161,6 +161,10 @@ CREATE FUNCTION hyperloglog_add_item_agg_error(counter hyperloglog_estimator, it
 CREATE FUNCTION hyperloglog_add_item_agg_default(counter hyperloglog_estimator, item anyelement) RETURNS hyperloglog_estimator
      AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg_default'
      LANGUAGE C IMMUTABLE;
+
+CREATE FUNCTION hyperloglog_add_item_agg_default(counter hyperloglog_estimator, item anyelement, format text) RETURNS hyperloglog_estimator
+     AS '$libdir/hyperloglog_counter', 'hyperloglog_add_item_agg_default'
+     LANGUAGE C IMMUTABLE;
      
 CREATE FUNCTION hyperloglog_get_estimate_bigint(hyperloglog_estimator) RETURNS bigint
      AS $$ select coalesce(round(hyperloglog_get_estimate($1))::bigint, 0) $$
@@ -231,6 +235,13 @@ CREATE AGGREGATE hyperloglog_accum(anyelement)
     sfunc = hyperloglog_add_item_agg_default,
     stype = hyperloglog_estimator,
     finalfunc = hyperloglog_comp
+);
+
+CREATE AGGREGATE hyperloglog_accum(anyelement, text)
+(
+     sfunc = hyperloglog_add_item_agg_default,
+     stype = hyperloglog_estimator,
+     finalfunc = hyperloglog_comp
 );
 
 -- mirror real sum function

@@ -52,7 +52,7 @@ PG_FUNCTION_INFO_V1(hyperloglog_length);
 
 PG_FUNCTION_INFO_V1(hyperloglog_in);
 PG_FUNCTION_INFO_V1(hyperloglog_out);
-PG_FUNCTION_INFO_V1(hyperloglog_rect);
+PG_FUNCTION_INFO_V1(hyperloglog_recv);
 PG_FUNCTION_INFO_V1(hyperloglog_send);
 
 PG_FUNCTION_INFO_V1(hyperloglog_comp);
