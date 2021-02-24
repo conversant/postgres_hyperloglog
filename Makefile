@@ -1,9 +1,9 @@
-MODULE_big = hyperloglog_counter
-OBJS = src/hyperloglog_counter.o src/hyperloglog.o src/upgrade.o src/hllutils.o src/encoding.o
-
 EXTENSION = hyperloglog_counter
+MODULE_big = $(EXTENSION)
+OBJS = $(patsubst %.c,%.o,$(wildcard src/*.c))
+
 DATA = sql/greenplum.sql sql/postgres.sql
-MODULES = hyperloglog_counter
+MODULES = $(EXTENSION)
  
 TEST_VERSION := $(shell psql -tAc "select case when lower(version()) like '%greenplum%' then 'gp' else 'pg' end")
 OUT_DIR = test/expected
@@ -24,15 +24,17 @@ TESTS        = $(foreach test,$(BASE_TEST),$(SQL_DIR)/$(test).sql)
 REGRESS      = $(patsubst $(SQL_DIR)%,%,$(TESTS))
 REGRESS_OPTS = -X --echo-all -P null=NULL
  
-PG_CONFIG = pg_config
+PG_CONFIG ?= pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 
-all: hyperloglog_counter.so
+ifeq ($(with_llvm), yes)
+COMPILE.c.bc = $(CLANG) -Wno-ignored-attributes $(BITCODE_CFLAGS) $(CPPFLAGS) -flto=thin -emit-llvm -c
 
-hyperloglog_counter.so: $(OBJS)
+%.bc : src/%.c
+	$(COMPILE.c.bc) -o $@ $<
 
-%.o : src/%.c
+endif
 
 tests: clean_test $(TEST)
 	@find $(SQL_DIR) -maxdepth 1 -name '*.diff' -print >> failures

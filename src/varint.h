@@ -37,7 +37,7 @@
 uint8_t * varint_encode_uint32 ( uint32_t value, uint8_t * target);
 const uint8_t * varint_decode_uint32(const uint8_t * buffer, uint32_t * value);
 uint8_t * group_varint_encode_uint32 ( uint32_t * valueArr, uint8_t * target);
-const uint8_t * group_varint_decode_uint32 ( const uint8_t * buf, uint32_t * valueArr);
+static const uint8_t * group_varint_decode_uint32 ( const uint8_t * buf, uint32_t * valueArr);
 
 uint32_t group_encode_sorted(uint32_t * input, int32_t length, uint8_t * output);
 void group_decode_sorted(const uint8_t * input, int32_t length, uint32_t * output);
@@ -941,7 +941,7 @@ group_encode_sorted(uint32_t * input,int32_t length ,uint8_t * output)
 
 /* Decode bytes that represent group-varint-encoded values into 4 uint32s
  */
-inline const uint8_t *
+inline static const uint8_t *
 group_varint_decode_uint32 ( const uint8_t * buf, uint32_t * valueArr)
 {
     const uint8_t * star = buf + 1;

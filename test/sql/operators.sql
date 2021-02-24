@@ -2,9 +2,9 @@ SET search_path = public, pg_catalog;
 
 BEGIN;
 
-    SELECT #(hyperloglog_accum(i)) hashtag_operator from generate_series(1,100) s(i);
+    SELECT (#(hyperloglog_accum(i)))::numeric(30,10) hashtag_operator from generate_series(1,100) s(i);
 
-    SELECT #(hyperloglog_accum(i) || hyperloglog_accum(i)) concat_operator from generate_series(1,100) s(i);
+    SELECT (#(hyperloglog_accum(i) || hyperloglog_accum(i)))::numeric(30,10) concat_operator from generate_series(1,100) s(i);
 
     SELECT hyperloglog_accum(i) = hyperloglog_accum(i) equal_operator from generate_series(1,100) s(i);
 

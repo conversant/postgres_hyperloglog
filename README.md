@@ -179,6 +179,12 @@ and if installing on greenplum then gscp the file to all nodes in the cluster
 gpscp -f /home/gpadmin/hosts.all /usr/local/greenplum-db/lib/postgresql/hyperloglog_counter.so =:/usr/local/greenplum-db/lib/postgresql/
 ```
 
+Additionally on GP Version 7+ you will need to copy the bit code to segments
+
+```
+gpscp -f /home/gpadmin/hosts.all -r /usr/local/greenplum-db/lib/postgresql/bitcode/hyperloglog_counter* =:/usr/local/greenplum-db/lib/postgresql/
+```
+
 Then you must add the SQL file which contains the type/cast/function/aggregation/operation definitions (use the appropriate installation file for you environment)
 
 ```

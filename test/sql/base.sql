@@ -28,11 +28,11 @@ BEGIN;
 
     SELECT length(v_counter3) v_counter3_length from test_temp;
 
-    SELECT hyperloglog_get_estimate(v_counter) v_counter_estimate from test_temp;
+    SELECT hyperloglog_get_estimate(v_counter)::numeric(30,10) v_counter_estimate from test_temp;
 
-    SELECT hyperloglog_get_estimate(v_counter2) v_counter2_estimate from test_temp;
+    SELECT hyperloglog_get_estimate(v_counter2)::numeric(30,10) v_counter2_estimate from test_temp;
 
-    SELECT hyperloglog_get_estimate(v_counter3) v_counter3_estimate from test_temp;
+    SELECT hyperloglog_get_estimate(v_counter3)::numeric(30,10) v_counter3_estimate from test_temp;
 
     SELECT convert_to_scalar(v_counter) v_counter_scalar from test_temp;
 
@@ -40,16 +40,16 @@ BEGIN;
 
     SELECT convert_to_scalar(v_counter3) v_counter3_scalar from test_temp;
 
-    SELECT hyperloglog_get_estimate_bigint(v_counter) v_counter_estimate_bigint from test_temp;
+    SELECT hyperloglog_get_estimate_bigint(v_counter)::numeric(30,10) v_counter_estimate_bigint from test_temp;
 
-    SELECT hyperloglog_get_estimate_bigint(v_counter2) v_counter2_estimate_bigint from test_temp;
+    SELECT hyperloglog_get_estimate_bigint(v_counter2)::numeric(30,10) v_counter2_estimate_bigint from test_temp;
 
-    SELECT hyperloglog_get_estimate_bigint(v_counter3) v_counter3_estimate_bigint from test_temp;
+    SELECT hyperloglog_get_estimate_bigint(v_counter3)::numeric(30,10) v_counter3_estimate_bigint from test_temp;
 
-    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter,v_counter3)) merge_small_into_big from test_temp;
+    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter,v_counter3))::numeric(30,10) merge_small_into_big from test_temp;
 
-    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter3,v_counter)) merge_big_into_small from test_temp;
+    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter3,v_counter))::numeric(30,10) merge_big_into_small from test_temp;
 
-    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter,v_counter)) merge_same from test_temp;
+    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter,v_counter))::numeric(30,10) merge_same from test_temp;
 
 ROLLBACK;

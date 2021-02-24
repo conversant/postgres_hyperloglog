@@ -18,14 +18,14 @@ BEGIN;
 
     --SELECT hyperloglog_info(dense_decomp::hyperloglog_estimator) FROM version0_counters;
 
-    SELECT hyperloglog_get_estimate(hyperloglog_update(dense_comp::hyperloglog_estimator)) dense_comp_v0_update FROM version0_counters;
+    SELECT hyperloglog_get_estimate(hyperloglog_update(dense_comp::hyperloglog_estimator))::numeric(30,10) dense_comp_v0_update FROM version0_counters;
 
-    SELECT hyperloglog_get_estimate(hyperloglog_update(dense_decomp::hyperloglog_estimator)) dense_decomp_v0_update FROM version0_counters;
+    SELECT hyperloglog_get_estimate(hyperloglog_update(dense_decomp::hyperloglog_estimator))::numeric(30,10) dense_decomp_v0_update FROM version0_counters;
 
-    SELECT hyperloglog_get_estimate(hyperloglog_update(sparse_4::hyperloglog_estimator)) sparse_v1_update FROM version1_counters;
+    SELECT hyperloglog_get_estimate(hyperloglog_update(sparse_4::hyperloglog_estimator))::numeric(30,10) sparse_v1_update FROM version1_counters;
 
-    SELECT hyperloglog_get_estimate(hyperloglog_update(dense_comp::hyperloglog_estimator)) dense_comp_v1_update FROM version1_counters;
+    SELECT hyperloglog_get_estimate(hyperloglog_update(dense_comp::hyperloglog_estimator))::numeric(30,10) dense_comp_v1_update FROM version1_counters;
 
-    SELECT hyperloglog_get_estimate(hyperloglog_update(dense_decomp::hyperloglog_estimator)) dense_decomp_v1_update FROM version1_counters;
+    SELECT hyperloglog_get_estimate(hyperloglog_update(dense_decomp::hyperloglog_estimator))::numeric(30,10) dense_decomp_v1_update FROM version1_counters;
 
 ROLLBACK;
