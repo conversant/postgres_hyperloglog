@@ -15,34 +15,34 @@ SELECT 1
 SELECT 1
     --SELECT hyperloglog_info(dense_comp::hyperloglog_estimator) FROM version0_counters;
     --SELECT hyperloglog_info(dense_decomp::hyperloglog_estimator) FROM version0_counters;
-    SELECT hyperloglog_get_estimate(hyperloglog_update(dense_comp::hyperloglog_estimator)) dense_comp_v0_update FROM version0_counters;
+    SELECT hyperloglog_get_estimate(hyperloglog_update(dense_comp::hyperloglog_estimator))::numeric(30,10) dense_comp_v0_update FROM version0_counters;
  dense_comp_v0_update 
 ----------------------
-     9998.40103485189
+      9998.4010348519
 (1 row)
 
-    SELECT hyperloglog_get_estimate(hyperloglog_update(dense_decomp::hyperloglog_estimator)) dense_decomp_v0_update FROM version0_counters;
+    SELECT hyperloglog_get_estimate(hyperloglog_update(dense_decomp::hyperloglog_estimator))::numeric(30,10) dense_decomp_v0_update FROM version0_counters;
  dense_decomp_v0_update 
 ------------------------
-       9998.40103485189
+        9998.4010348519
 (1 row)
 
-    SELECT hyperloglog_get_estimate(hyperloglog_update(sparse_4::hyperloglog_estimator)) sparse_v1_update FROM version1_counters;
+    SELECT hyperloglog_get_estimate(hyperloglog_update(sparse_4::hyperloglog_estimator))::numeric(30,10) sparse_v1_update FROM version1_counters;
  sparse_v1_update 
 ------------------
- 4.00000023841854
+     4.0000002384
 (1 row)
 
-    SELECT hyperloglog_get_estimate(hyperloglog_update(dense_comp::hyperloglog_estimator)) dense_comp_v1_update FROM version1_counters;
+    SELECT hyperloglog_get_estimate(hyperloglog_update(dense_comp::hyperloglog_estimator))::numeric(30,10) dense_comp_v1_update FROM version1_counters;
  dense_comp_v1_update 
 ----------------------
-     9998.40103485189
+      9998.4010348519
 (1 row)
 
-    SELECT hyperloglog_get_estimate(hyperloglog_update(dense_decomp::hyperloglog_estimator)) dense_decomp_v1_update FROM version1_counters;
+    SELECT hyperloglog_get_estimate(hyperloglog_update(dense_decomp::hyperloglog_estimator))::numeric(30,10) dense_decomp_v1_update FROM version1_counters;
  dense_decomp_v1_update 
 ------------------------
-       9998.40103485189
+        9998.4010348519
 (1 row)
 
 ROLLBACK;

@@ -124,6 +124,11 @@ void pg_decompress(const PGLZ_Header *source, char *dest)
 
         sp = (const char *) (((const unsigned char *) source) + sizeof(PGLZ_Header));
         slen = VARSIZE(source);
+    #endif
+
+    #if PG_VERSION_NUM >= 120000
+        pglz_decompress(sp, slen, dest, source->rawsize, true);
+    #elif PG_VERSION_NUM >= 90500
         pglz_decompress(sp, slen, dest, source->rawsize);
     #else
         pglz_decompress(source, dest);

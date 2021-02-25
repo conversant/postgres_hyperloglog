@@ -2,27 +2,27 @@ SET search_path = public, pg_catalog;
 
 BEGIN;
 
-    SELECT hyperloglog_distinct(id) distinct_estimate_int_sparse FROM generate_series(1,100) s(id);
+    SELECT hyperloglog_distinct(id)::numeric(30,10) distinct_estimate_int_sparse FROM generate_series(1,100) s(id);
 
-    SELECT hyperloglog_distinct(id::text) distinct_estimate_text_sparse FROM generate_series(1,100) s(id);
+    SELECT hyperloglog_distinct(id::text)::numeric(30,10) distinct_estimate_text_sparse FROM generate_series(1,100) s(id);
 
-    SELECT hyperloglog_distinct(id) distinct_estimate_int_dense FROM generate_series(1,100000) s(id);
+    SELECT hyperloglog_distinct(id)::numeric(30,10) distinct_estimate_int_dense FROM generate_series(1,100000) s(id);
 
-    SELECT hyperloglog_distinct(id::text) distinct_estimate_text_dense FROM generate_series(1,100000) s(id);
+    SELECT hyperloglog_distinct(id::text)::numeric(30,10) distinct_estimate_text_dense FROM generate_series(1,100000) s(id);
 
-    SELECT hyperloglog_get_estimate(hyperloglog_accum(i)) accum_sparse1 FROM generate_series(1,1) s(i);
+    SELECT hyperloglog_get_estimate(hyperloglog_accum(i))::numeric(30,10) accum_sparse1 FROM generate_series(1,1) s(i);
 
-    SELECT hyperloglog_get_estimate(hyperloglog_accum(i)) accum_sparse2 FROM generate_series(1,100) s(i);
+    SELECT hyperloglog_get_estimate(hyperloglog_accum(i))::numeric(30,10) accum_sparse2 FROM generate_series(1,100) s(i);
 
-    SELECT hyperloglog_get_estimate(hyperloglog_accum(i)) accum_sparse3 FROM generate_series(1,1020) s(i);
+    SELECT hyperloglog_get_estimate(hyperloglog_accum(i))::numeric(30,10) accum_sparse3 FROM generate_series(1,1020) s(i);
 
-    SELECT hyperloglog_get_estimate(hyperloglog_accum(i)) accum_dense1 FROM generate_series(1,10000) s(i);
+    SELECT hyperloglog_get_estimate(hyperloglog_accum(i))::numeric(30,10) accum_dense1 FROM generate_series(1,10000) s(i);
 
-    SELECT hyperloglog_get_estimate(hyperloglog_accum(i)) accum_dense2 FROM generate_series(1,100000) s(i);
+    SELECT hyperloglog_get_estimate(hyperloglog_accum(i))::numeric(30,10) accum_dense2 FROM generate_series(1,100000) s(i);
 
-    SELECT hyperloglog_get_estimate(hyperloglog_accum(i::text)) accum_dense3 FROM generate_series(1,10000) s(i);
+    SELECT hyperloglog_get_estimate(hyperloglog_accum(i::text))::numeric(30,10) accum_dense3 FROM generate_series(1,10000) s(i);
 
-    SELECT hyperloglog_get_estimate(hyperloglog_accum(i::text)) accum_dense4 FROM generate_series(1,100000) s(i);
+    SELECT hyperloglog_get_estimate(hyperloglog_accum(i::text))::numeric(30,10) accum_dense4 FROM generate_series(1,100000) s(i);
 
     SELECT hyperloglog_accum(i,'u') accum_unpacked_sparse FROM generate_series(1,1000) s(i);
 
@@ -56,7 +56,7 @@ BEGIN;
     SELECT hyperloglog_accum(i,'p') accum_packed_two_level_Agg FROM TEST_ACCUM;
 
     SELECT 
-        hyperloglog_get_estimate(hyperloglog_merge(j.counters)) merge_agg_sparse 
+        hyperloglog_get_estimate(hyperloglog_merge(j.counters))::numeric(30,10) merge_agg_sparse 
     FROM 
         (SELECT 
             i, 
@@ -71,7 +71,7 @@ BEGIN;
             group by i) j;
 
     SELECT 
-        hyperloglog_get_estimate(hyperloglog_merge(j.counters)) merge_agg_dense 
+        hyperloglog_get_estimate(hyperloglog_merge(j.counters))::numeric(30,10) merge_agg_dense 
     FROM 
         (SELECT 
             i , 
@@ -127,13 +127,13 @@ BEGIN;
 
     SELECT 
         1, 
-        #(hyperloglog_merge(a)) 
+        (#(hyperloglog_merge(a)))::numeric(30,10)
     FROM 
         test 
     UNION ALL 
     SELECT 
         2, 
-        #(hyperloglog_merge(a)) 
+        (#(hyperloglog_merge(a)))::numeric(30,10)
     FROM 
         test;
  

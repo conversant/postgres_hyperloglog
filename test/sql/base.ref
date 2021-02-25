@@ -68,22 +68,22 @@ SELECT 1
                330
 (1 row)
 
-    SELECT hyperloglog_get_estimate(v_counter) v_counter_estimate from test_temp;
+    SELECT hyperloglog_get_estimate(v_counter)::numeric(30,10) v_counter_estimate from test_temp;
  v_counter_estimate 
 --------------------
    98643.3506821464
 (1 row)
 
-    SELECT hyperloglog_get_estimate(v_counter2) v_counter2_estimate from test_temp;
+    SELECT hyperloglog_get_estimate(v_counter2)::numeric(30,10) v_counter2_estimate from test_temp;
  v_counter2_estimate 
 ---------------------
     98924.8726897958
 (1 row)
 
-    SELECT hyperloglog_get_estimate(v_counter3) v_counter3_estimate from test_temp;
+    SELECT hyperloglog_get_estimate(v_counter3)::numeric(30,10) v_counter3_estimate from test_temp;
  v_counter3_estimate 
 ---------------------
-     100.00014901102
+      100.0001490110
 (1 row)
 
     SELECT convert_to_scalar(v_counter) v_counter_scalar from test_temp;
@@ -104,37 +104,37 @@ SELECT 1
                100
 (1 row)
 
-    SELECT hyperloglog_get_estimate_bigint(v_counter) v_counter_estimate_bigint from test_temp;
+    SELECT hyperloglog_get_estimate_bigint(v_counter)::numeric(30,10) v_counter_estimate_bigint from test_temp;
  v_counter_estimate_bigint 
 ---------------------------
-                     98643
+          98643.0000000000
 (1 row)
 
-    SELECT hyperloglog_get_estimate_bigint(v_counter2) v_counter2_estimate_bigint from test_temp;
+    SELECT hyperloglog_get_estimate_bigint(v_counter2)::numeric(30,10) v_counter2_estimate_bigint from test_temp;
  v_counter2_estimate_bigint 
 ----------------------------
-                      98925
+           98925.0000000000
 (1 row)
 
-    SELECT hyperloglog_get_estimate_bigint(v_counter3) v_counter3_estimate_bigint from test_temp;
+    SELECT hyperloglog_get_estimate_bigint(v_counter3)::numeric(30,10) v_counter3_estimate_bigint from test_temp;
  v_counter3_estimate_bigint 
 ----------------------------
-                        100
+             100.0000000000
 (1 row)
 
-    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter,v_counter3)) merge_small_into_big from test_temp;
+    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter,v_counter3))::numeric(30,10) merge_small_into_big from test_temp;
  merge_small_into_big 
 ----------------------
      98643.3506821464
 (1 row)
 
-    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter3,v_counter)) merge_big_into_small from test_temp;
+    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter3,v_counter))::numeric(30,10) merge_big_into_small from test_temp;
  merge_big_into_small 
 ----------------------
      98643.3506821464
 (1 row)
 
-    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter,v_counter)) merge_same from test_temp;
+    SELECT hyperloglog_get_estimate(hyperloglog_merge(v_counter,v_counter))::numeric(30,10) merge_same from test_temp;
     merge_same    
 ------------------
  98643.3506821464

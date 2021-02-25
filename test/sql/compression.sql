@@ -27,13 +27,13 @@ BEGIN;
 
     SELECT length(hyperloglog_decomp(hyperloglog_comp(hyperloglog_decomp(hyperloglog_accum(i))))) dense_chain_length from generate_series(1,10000) s(i);
 
-    SELECT #(hyperloglog_decomp(hyperloglog_comp(hyperloglog_decomp(hyperloglog_accum(i))))) sparse_chain_val from generate_series(1,100) s(i);
+    SELECT (#(hyperloglog_decomp(hyperloglog_comp(hyperloglog_decomp(hyperloglog_accum(i))))))::numeric(30,10) sparse_chain_val from generate_series(1,100) s(i);
 
-    SELECT #(hyperloglog_decomp(hyperloglog_comp(hyperloglog_decomp(hyperloglog_accum(i))))) dense_chain_val from generate_series(1,10000) s(i);
+    SELECT (#(hyperloglog_decomp(hyperloglog_comp(hyperloglog_decomp(hyperloglog_accum(i))))))::numeric(30,10) dense_chain_val from generate_series(1,10000) s(i);
 
-    SELECT hyperloglog_get_estimate(hyperloglog_merge(hyperloglog_decomp(hyperloglog_accum(i)),hyperloglog_comp(hyperloglog_accum(i)))) merge_decomp_comp from generate_series(1,100) s(i);
+    SELECT hyperloglog_get_estimate(hyperloglog_merge(hyperloglog_decomp(hyperloglog_accum(i)),hyperloglog_comp(hyperloglog_accum(i))))::numeric(30,10) merge_decomp_comp from generate_series(1,100) s(i);
 
-    SELECT hyperloglog_get_estimate(hyperloglog_merge(hyperloglog_comp(hyperloglog_accum(i)),hyperloglog_decomp(hyperloglog_accum(i)))) merge_comp_decomp from generate_series(1,100) s(i);
+    SELECT hyperloglog_get_estimate(hyperloglog_merge(hyperloglog_comp(hyperloglog_accum(i)),hyperloglog_decomp(hyperloglog_accum(i))))::numeric(30,10) merge_comp_decomp from generate_series(1,100) s(i);
 
-    SELECT hyperloglog_get_estimate(hyperloglog_merge(hyperloglog_decomp(hyperloglog_accum(i)),hyperloglog_decomp(hyperloglog_accum(i)))) merge_decomp_decomp from generate_series(1,100) s(i);
+    SELECT hyperloglog_get_estimate(hyperloglog_merge(hyperloglog_decomp(hyperloglog_accum(i)),hyperloglog_decomp(hyperloglog_accum(i))))::numeric(30,10) merge_decomp_decomp from generate_series(1,100) s(i);
 ROLLBACK;

@@ -44,73 +44,73 @@ BEGIN
 (1 row)
 
   
-    SELECT hyperloglog_intersection(hyperloglog_accum(i),hyperloglog_accum(i*-1)) no_intersection_sparse from generate_series(1,100) s(i);
+    SELECT hyperloglog_intersection(hyperloglog_accum(i),hyperloglog_accum(i*-1))::numeric(30,10) no_intersection_sparse from generate_series(1,100) s(i);
  no_intersection_sparse 
 ------------------------
-   -0.00029802712171545
+          -0.0002980271
 (1 row)
 
   
-    SELECT hyperloglog_intersection(hyperloglog_accum(i),hyperloglog_accum(i*-1)) no_intersection_dense from generate_series(1,10000) s(i);
+    SELECT hyperloglog_intersection(hyperloglog_accum(i),hyperloglog_accum(i*-1))::numeric(30,10) no_intersection_dense from generate_series(1,10000) s(i);
  no_intersection_dense 
 -----------------------
-      190.209960892465
+        190.2099608925
 (1 row)
 
   
-    SELECT hyperloglog_intersection(hyperloglog_accum(i),hyperloglog_accum(i*-1)) intersection_sparse from generate_series(-10,100) s(i);
+    SELECT hyperloglog_intersection(hyperloglog_accum(i),hyperloglog_accum(i*-1))::numeric(30,10) intersection_sparse from generate_series(-10,100) s(i);
  intersection_sparse 
 ---------------------
-    20.9997651683389
+       20.9997651683
 (1 row)
 
   
-    SELECT hyperloglog_intersection(hyperloglog_accum(i),hyperloglog_accum(i*-1)) intersection_dense from generate_series(-1000,10000) s(i);
+    SELECT hyperloglog_intersection(hyperloglog_accum(i),hyperloglog_accum(i*-1))::numeric(30,10) intersection_dense from generate_series(-1000,10000) s(i);
  intersection_dense 
 --------------------
-   2223.72188397264
+    2223.7218839726
 (1 row)
 
   
-    SELECT hyperloglog_intersection(hyperloglog_accum(i),hyperloglog_accum(i%100)) intersection_mixed from generate_series(1,10000) s(i);
+    SELECT hyperloglog_intersection(hyperloglog_accum(i),hyperloglog_accum(i%100))::numeric(30,10) intersection_mixed from generate_series(1,10000) s(i);
  intersection_mixed 
 --------------------
-   100.000149011019
+     100.0001490110
 (1 row)
 
   
-    SELECT hyperloglog_union(hyperloglog_accum(i),hyperloglog_accum(i)) union_sparse from generate_series(1,100) s(i);
-  union_sparse   
+    SELECT hyperloglog_union(hyperloglog_accum(i),hyperloglog_accum(i))::numeric(30,10) union_sparse from generate_series(1,100) s(i);
+  union_sparse  
+----------------
+ 100.0001490110
+(1 row)
+
+  
+    SELECT hyperloglog_union(hyperloglog_accum(i),hyperloglog_accum(i))::numeric(30,10) union_dense from generate_series(1,10000) s(i);
+   union_dense   
 -----------------
- 100.00014901102
+ 9998.4010348519
 (1 row)
 
   
-    SELECT hyperloglog_union(hyperloglog_accum(i),hyperloglog_accum(i)) union_dense from generate_series(1,10000) s(i);
-   union_dense    
-------------------
- 9998.40103485189
+    SELECT hyperloglog_union(hyperloglog_accum(i%5),hyperloglog_accum(i))::numeric(30,10) union_mixed1 from generate_series(1,10000) s(i);
+  union_mixed1   
+-----------------
+ 9998.4010348519
 (1 row)
 
   
-    SELECT hyperloglog_union(hyperloglog_accum(i%5),hyperloglog_accum(i)) union_mixed1 from generate_series(1,10000) s(i);
-   union_mixed1   
-------------------
- 9998.40103485189
+    SELECT hyperloglog_union(hyperloglog_accum(i),hyperloglog_accum(i%5))::numeric(30,10) union_mixed2 from generate_series(1,10000) s(i);
+  union_mixed2   
+-----------------
+ 9998.4010348519
 (1 row)
 
   
-    SELECT hyperloglog_union(hyperloglog_accum(i),hyperloglog_accum(i%5)) union_mixed2 from generate_series(1,10000) s(i);
-   union_mixed2   
-------------------
- 9998.40103485189
-(1 row)
-
-  
-    SELECT hyperloglog_compliment(hyperloglog_accum(i),hyperloglog_accum(i%100)) compliment from generate_series(1,10000) s(i);
-    compliment    
-------------------
- 9898.40088584087
+    SELECT hyperloglog_compliment(hyperloglog_accum(i),hyperloglog_accum(i%100))::numeric(30,10) compliment from generate_series(1,10000) s(i);
+   compliment    
+-----------------
+ 9898.4008858409
 (1 row)
 
   
@@ -121,7 +121,7 @@ BEGIN
 (1 row)
 
   
-    SELECT hyperloglog_symmetric_diff(hyperloglog_accum(i),hyperloglog_accum(i*-1))  symmetric_diff from generate_series(-1000,10000) s(i);
+    SELECT hyperloglog_symmetric_diff(hyperloglog_accum(i),hyperloglog_accum(i*-1))::numeric(30,10)  symmetric_diff from generate_series(-1000,10000) s(i);
   symmetric_diff  
 ------------------
  17645.5802695852
